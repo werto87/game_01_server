@@ -19,11 +19,11 @@ std::vector<std::string>
 handleMessage (std::string const &msg)
 {
   auto result = std::vector<std::string>{};
-  if (boost::algorithm::starts_with (msg, "create new account|"))
+  if (boost::algorithm::starts_with (msg, "create account|"))
     {
       result = createAccount (msg);
     }
-  else if (boost::algorithm::contains (msg, "player direction|"))
+  else if (boost::algorithm::contains (msg, "create character|"))
     {
       result = createCharacter (msg);
     }
@@ -46,7 +46,7 @@ createAccount (std::string const &msg)
               auto accountStringStream = std::stringstream{};
               boost::archive::text_oarchive accountArchive{ accountStringStream };
               accountArchive << account.value ();
-              result.push_back (accountStringStream.str ());
+              result.push_back ("account|" + accountStringStream.str ());
             }
         }
     }
@@ -61,7 +61,7 @@ createCharacter (std::string const &msg)
   boost::algorithm::split (splitMesssage, msg, boost::is_any_of ("|"));
   if (splitMesssage.size () >= 2)
     {
-      if (auto character = database::createCharacter (splitMesssage.at (1)); character.has_value ())
+      if (auto character = database::createCharacter (splitMesssage.at (1)))
         {
           auto characterStringStream = std::stringstream{};
           boost::archive::text_oarchive characterArchive{ characterStringStream };

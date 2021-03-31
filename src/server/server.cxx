@@ -78,8 +78,9 @@ Server::writeToClient (std::shared_ptr<websocket::stream<tcp_stream> > ws_)
           co_await timer.async_wait (use_awaitable);
           while (not msgToSend.empty ())
             {
-              co_await ws_->async_write (buffer (msgToSend.back ()), use_awaitable);
-              msgToSend.pop_back ();
+              auto msg = std::move (msgToSend.front ());
+              msgToSend.pop_front ();
+              co_await ws_->async_write (buffer (msg), use_awaitable);
             }
         }
     }

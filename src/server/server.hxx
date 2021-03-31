@@ -21,7 +21,7 @@ private:
   boost::asio::awaitable<void> writeToClient (std::shared_ptr<boost::beast::websocket::stream<boost::beast::tcp_stream> > ws_);
 
   boost::asio::io_context &_io_context;
-  std::vector<std::string> msgToSend{};
+  std::deque<std::string> msgToSend{};
 };
 
 #endif /* AD140436_3FBA_4D63_8C0E_9113B92859E0 */
