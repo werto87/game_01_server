@@ -30,10 +30,10 @@ createTables ()
 }
 
 boost::optional<Account>
-createAccount (std::string const &firstName, std::string const &lastName)
+createAccount (std::string const &accountName, std::string const &password)
 {
   soci::session sql (soci::sqlite3, pathToTestDatabase);
-  return confu_soci::findStruct<Account> (sql, "id", confu_soci::insertStruct (sql, Account{ .id = {}, .firstName = firstName, .lastName = lastName }, true, true));
+  return confu_soci::findStruct<Account> (sql, "id", confu_soci::insertStruct (sql, Account{ .id = {}, .accountName = accountName, .password = password }, true, true));
 }
 
 boost::optional<database::Character>

@@ -58,6 +58,7 @@ ${PROJECT_OPTIONS}
 CONAN_PKG::confu_soci
 CONAN_PKG::confu_boost
 CONAN_PKG::boost
+CONAN_PKG::libxcrypt
 )
 
 ####### create executable

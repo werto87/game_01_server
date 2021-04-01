@@ -16,7 +16,10 @@ SCENARIO ("create an account with createAccount", "[createAccount]")
     database::createTables ();
     WHEN ("the account gets created")
     {
-      auto accountAsString = createAccount ("|joe,doe").at (0);
+      auto accountAsString = createAccount ("|joe,doe").value ();
+      std::vector<std::string> splitMesssage{};
+      boost::algorithm::split (splitMesssage, accountAsString, boost::is_any_of ("|"));
+
       THEN ("account is in table and result from create account can be serialized into account object")
       {
         auto accountStringStream = std::stringstream{};
@@ -24,9 +27,9 @@ SCENARIO ("create an account with createAccount", "[createAccount]")
         boost::archive::text_iarchive ia (accountStringStream);
         auto account = database::Account{};
         ia >> account;
-        REQUIRE (account.firstName == "joe");
+        REQUIRE (account.accountName == "joe");
         soci::session sql (soci::sqlite3, pathToTestDatabase);
-        REQUIRE (confu_soci::findStruct<database::Account> (sql, "firstName", "joe").has_value ());
+        REQUIRE (confu_soci::findStruct<database::Account> (sql, "accountName", "joe").has_value ());
       }
     }
   }
@@ -39,10 +42,10 @@ SCENARIO ("create an character with createCharacter", "[createCharacter]")
     database::createEmptyDatabase ();
     database::createTables ();
     soci::session sql (soci::sqlite3, pathToTestDatabase);
-    confu_soci::insertStruct (sql, database::Account{ .id = "accountId", .firstName = "firstName", .lastName = "lastName" });
+    confu_soci::insertStruct (sql, database::Account{ .id = "accountId", .accountName = "firstName", .password = "lastName" });
     WHEN ("the account gets created")
     {
-      auto accountAsString = createCharacter ("|accountId").at (0);
+      auto accountAsString = createCharacter ("|accountId").value ();
       THEN ("Character is in table and result from create Character can be serialized into Character object")
       {
         auto characterStringStream = std::stringstream{};
@@ -65,7 +68,7 @@ SCENARIO ("create an account with handleMessage", "[handleMessage]")
     database::createTables ();
     WHEN ("the account gets created")
     {
-      auto accountAsString = handleMessage ("create new account|joe,doe").at (0);
+      auto accountAsString = handleMessage ("create account|joe,doe").at (0);
       THEN ("account is in table and result from create account can be serialized into account object")
       {
         auto accountStringStream = std::stringstream{};
@@ -73,9 +76,9 @@ SCENARIO ("create an account with handleMessage", "[handleMessage]")
         boost::archive::text_iarchive ia (accountStringStream);
         auto account = database::Account{};
         ia >> account;
-        REQUIRE (account.firstName == "joe");
+        REQUIRE (account.accountName == "joe");
         soci::session sql (soci::sqlite3, pathToTestDatabase);
-        REQUIRE (confu_soci::findStruct<database::Account> (sql, "firstName", "joe").has_value ());
+        REQUIRE (confu_soci::findStruct<database::Account> (sql, "accountName", "joe").has_value ());
       }
     }
   }

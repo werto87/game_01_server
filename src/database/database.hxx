@@ -8,7 +8,7 @@
 #include <filesystem>
 
 BOOST_FUSION_DEFINE_STRUCT ((database), Character, (std::string, id) (long, positionX) (long, positionY) (long, positionZ) (std::string, accountId))
-BOOST_FUSION_DEFINE_STRUCT ((database), Account, (std::string, id) (std::string, firstName) (std::string, lastName))
+BOOST_FUSION_DEFINE_STRUCT ((database), Account, (std::string, id) (std::string, accountName) (std::string, password))
 BOOST_FUSION_DEFINE_STRUCT ((database), BoardElement, (std::string, id) (std::string, boardId))
 BOOST_FUSION_DEFINE_STRUCT ((database), Board, (std::string, id) (std::string, gameId))
 BOOST_FUSION_DEFINE_STRUCT ((database), Game, (std::string, id))
@@ -24,7 +24,7 @@ namespace database
 void createEmptyDatabase ();
 void createTables ();
 
-boost::optional<database::Account> createAccount (std::string const &firstName, std::string const &lastName);
+boost::optional<database::Account> createAccount (std::string const &accountName, std::string const &password);
 boost::optional<database::Character> createCharacter (std::string const &accoundId);
 }
 

@@ -21,19 +21,25 @@ handleMessage (std::string const &msg)
   auto result = std::vector<std::string>{};
   if (boost::algorithm::starts_with (msg, "create account|"))
     {
-      result = createAccount (msg);
+      if (auto accountAsString = createAccount (msg))
+        {
+          result.push_back (accountAsString.value ());
+        }
     }
   else if (boost::algorithm::contains (msg, "create character|"))
     {
-      result = createCharacter (msg);
+      if (auto characterAsString = createCharacter (msg))
+        {
+          result.push_back (characterAsString.value ());
+        }
     }
   return result;
 }
 
-std::vector<std::string>
+boost::optional<std::string>
 createAccount (std::string const &msg)
 {
-  auto result = std::vector<std::string>{};
+  auto accountStringStream = std::stringstream{};
   std::vector<std::string> splitMesssage{};
   boost::algorithm::split (splitMesssage, msg, boost::is_any_of ("|"));
   if (splitMesssage.size () >= 2)
@@ -43,31 +49,27 @@ createAccount (std::string const &msg)
         {
           if (auto account = database::createAccount (splitMesssage.at (0), splitMesssage.at (1)); account.has_value ())
             {
-              auto accountStringStream = std::stringstream{};
               boost::archive::text_oarchive accountArchive{ accountStringStream };
               accountArchive << account.value ();
-              result.push_back ("account|" + accountStringStream.str ());
             }
         }
     }
-  return result;
+  return accountStringStream.str ();
 }
 
-std::vector<std::string>
+boost::optional<std::string>
 createCharacter (std::string const &msg)
 {
-  auto result = std::vector<std::string>{};
+  auto characterStringStream = std::stringstream{};
   std::vector<std::string> splitMesssage{};
   boost::algorithm::split (splitMesssage, msg, boost::is_any_of ("|"));
   if (splitMesssage.size () >= 2)
     {
       if (auto character = database::createCharacter (splitMesssage.at (1)))
         {
-          auto characterStringStream = std::stringstream{};
           boost::archive::text_oarchive characterArchive{ characterStringStream };
           characterArchive << character.value ();
-          result.push_back (characterStringStream.str ());
         }
     }
-  return result;
+  return characterStringStream.str ();
 }
