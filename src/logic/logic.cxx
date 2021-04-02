@@ -12,6 +12,8 @@
 #include <boost/optional/optional_io.hpp>
 #include <boost/serialization/optional.hpp>
 #include <boost/type_index.hpp>
+#include <crypt.h>
+#include <sodium.h>
 #include <sstream>
 #include <string>
 
@@ -47,7 +49,13 @@ createAccount (std::string const &msg)
       boost::algorithm::split (splitMesssage, splitMesssage.at (1), boost::is_any_of (","));
       if (splitMesssage.size () >= 2)
         {
-          if (auto account = database::createAccount (splitMesssage.at (0), splitMesssage.at (1)); account.has_value ())
+          // hash pw
+
+          if (auto account = database::createAccount (splitMesssage.at (0),
+                                                      // hash this plx
+                                                      splitMesssage.at (1)
+                                                      // hash this plx
+                                                      ))
             {
               boost::archive::text_oarchive accountArchive{ accountStringStream };
               accountArchive << account.value ();

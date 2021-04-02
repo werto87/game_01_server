@@ -1,12 +1,21 @@
 #include "src/database/database.hxx"
 #include "src/server/server.hxx"
 #include <boost/bind/bind.hpp>
+#include <exception>
 #include <iostream>
+#include <sodium.h>
+#include <stdexcept>
 int
 main ()
 {
   try
     {
+      if (sodium_init () < 0)
+        {
+          std::cout << "sodium_init => 0" << std::endl;
+          std::terminate ();
+          /* panic! the library couldn't be initialized, it is not safe to use */
+        }
       database::createEmptyDatabase ();
       database::createTables ();
       boost::asio::io_context io_context (1);

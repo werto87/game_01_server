@@ -5,6 +5,9 @@
 #include <boost/archive/text_iarchive.hpp>
 #include <catch2/catch.hpp>
 #include <confu_soci/convenienceFunctionForSoci.hxx>
+#include <iterator>
+#include <sodium.h>
+#include <span>
 namespace test
 {
 
@@ -83,4 +86,39 @@ SCENARIO ("create an account with handleMessage", "[handleMessage]")
     }
   }
 }
+}
+
+std::string
+hash_func (std::string const &password)
+{
+
+  unsigned char hash[crypto_generichash_BYTES];
+
+  crypto_generichash (hash, sizeof hash, reinterpret_cast<const unsigned char *> (password.data ()), password.size (), NULL, 0);
+
+  auto hashSpan = std::span<unsigned char>{ hash };
+  auto result = std::string{};
+  std::copy (hashSpan.begin (), hashSpan.end (), std::back_inserter (result));
+
+  std::cout << result << " size: " << result.size () << std::endl;
+  return result;
+}
+
+TEST_CASE ("Factorials are computed", "[factorial]")
+{
+  if (sodium_init () < 0)
+    {
+      std::cout << "sodium_init => 0" << std::endl;
+      std::terminate ();
+      /* panic! the library couldn't be initialized, it is not safe to use */
+    }
+
+#define MESSAGE ((const unsigned char *)"Arbitrary data to hash")
+#define MESSAGE_LEN 22
+
+  unsigned char hash[crypto_generichash_BYTES];
+
+  crypto_generichash (hash, sizeof hash, MESSAGE, MESSAGE_LEN, NULL, 0);
+  std::cout << hash << std::endl;
+  hash_func ("Arbitrary data to hash");
 }
