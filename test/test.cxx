@@ -1,10 +1,12 @@
 #include "src/database/database.hxx"
 #include "src/logic/logic.hxx"
+#include "src/pw_hash/passwordHash.hxx"
 #include <boost/archive/basic_text_iarchive.hpp>
 #include <boost/archive/basic_text_oarchive.hpp>
 #include <boost/archive/text_iarchive.hpp>
 #include <catch2/catch.hpp>
 #include <confu_soci/convenienceFunctionForSoci.hxx>
+#include <iostream>
 #include <iterator>
 #include <sodium.h>
 #include <span>
@@ -88,23 +90,7 @@ SCENARIO ("create an account with handleMessage", "[handleMessage]")
 }
 }
 
-std::string
-hash_func (std::string const &password)
-{
-
-  unsigned char hash[crypto_generichash_BYTES];
-
-  crypto_generichash (hash, sizeof hash, reinterpret_cast<const unsigned char *> (password.data ()), password.size (), NULL, 0);
-
-  auto hashSpan = std::span<unsigned char>{ hash };
-  auto result = std::string{};
-  std::copy (hashSpan.begin (), hashSpan.end (), std::back_inserter (result));
-
-  std::cout << result << " size: " << result.size () << std::endl;
-  return result;
-}
-
-TEST_CASE ("Factorials are computed", "[factorial]")
+TEST_CASE ("check_hashed_pw", "[check_hashed_pw]")
 {
   if (sodium_init () < 0)
     {
@@ -112,13 +98,8 @@ TEST_CASE ("Factorials are computed", "[factorial]")
       std::terminate ();
       /* panic! the library couldn't be initialized, it is not safe to use */
     }
-
-#define MESSAGE ((const unsigned char *)"Arbitrary data to hash")
-#define MESSAGE_LEN 22
-
-  unsigned char hash[crypto_generichash_BYTES];
-
-  crypto_generichash (hash, sizeof hash, MESSAGE, MESSAGE_LEN, NULL, 0);
-  std::cout << hash << std::endl;
-  hash_func ("Arbitrary data to hash");
+  auto pw = std::string{ "hello world" };
+  auto pw_hash = pw_to_hash (pw);
+  std::cout << pw_hash << std::endl;
+  REQUIRE (check_hashed_pw (pw_hash, pw));
 }
