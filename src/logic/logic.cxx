@@ -57,7 +57,7 @@ createAccount (std::string const &msg, boost::asio::io_context &io_context)
       boost::algorithm::split (splitMesssage, splitMesssage.at (1), boost::is_any_of (","));
       if (splitMesssage.size () >= 2)
         {
-          // thread pool should be a function parameter
+          // TODO thread pool should be a function parameter
           static boost::asio::thread_pool pool (2);
           auto hashedPw = co_await async_hash (pool, io_context, splitMesssage.at (1), boost::asio::use_awaitable);
           if (auto account = database::createAccount (splitMesssage.at (0), hashedPw))
@@ -83,7 +83,7 @@ loginAccount (std::string const &msg, boost::asio::io_context &io_context)
         {
           std::cout << splitMesssage.at (0) << std::endl;
           std::cout << splitMesssage.at (1) << std::endl;
-          // thread pool should be a function parameter
+          // TODO thread pool should be a function parameter
           static boost::asio::thread_pool pool (2);
           soci::session sql (soci::sqlite3, pathToTestDatabase);
           auto account = confu_soci::findStruct<database::Account> (sql, "accountName", splitMesssage.at (0));
