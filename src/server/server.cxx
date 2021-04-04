@@ -55,7 +55,7 @@ Server::readFromClient (std::shared_ptr<websocket::stream<tcp_stream> > ws_)
       for (;;)
         {
           auto readResult = co_await my_read (*ws_);
-          auto result = handleMessage (readResult);
+          auto result = co_await handleMessage (readResult, _io_context);
           msgToSend.insert (msgToSend.end (), make_move_iterator (result.begin ()), make_move_iterator (result.end ()));
         }
     }

@@ -13,32 +13,32 @@
 namespace test
 {
 
-SCENARIO ("create an account with createAccount", "[createAccount]")
-{
-  GIVEN ("empty database")
-  {
-    database::createEmptyDatabase ();
-    database::createTables ();
-    WHEN ("the account gets created")
-    {
-      auto accountAsString = createAccount ("|joe,doe").value ();
-      std::vector<std::string> splitMesssage{};
-      boost::algorithm::split (splitMesssage, accountAsString, boost::is_any_of ("|"));
+// SCENARIO ("create an account with createAccount", "[createAccount]")
+// {
+//   GIVEN ("empty database")
+//   {
+//     database::createEmptyDatabase ();
+//     database::createTables ();
+//     WHEN ("the account gets created")
+//     {
+//       auto accountAsString = createAccount ("|joe,doe").value ();
+//       std::vector<std::string> splitMesssage{};
+//       boost::algorithm::split (splitMesssage, accountAsString, boost::is_any_of ("|"));
 
-      THEN ("account is in table and result from create account can be serialized into account object")
-      {
-        auto accountStringStream = std::stringstream{};
-        accountStringStream << accountAsString;
-        boost::archive::text_iarchive ia (accountStringStream);
-        auto account = database::Account{};
-        ia >> account;
-        REQUIRE (account.accountName == "joe");
-        soci::session sql (soci::sqlite3, pathToTestDatabase);
-        REQUIRE (confu_soci::findStruct<database::Account> (sql, "accountName", "joe").has_value ());
-      }
-    }
-  }
-}
+//       THEN ("account is in table and result from create account can be serialized into account object")
+//       {
+//         auto accountStringStream = std::stringstream{};
+//         accountStringStream << accountAsString;
+//         boost::archive::text_iarchive ia (accountStringStream);
+//         auto account = database::Account{};
+//         ia >> account;
+//         REQUIRE (account.accountName == "joe");
+//         soci::session sql (soci::sqlite3, pathToTestDatabase);
+//         REQUIRE (confu_soci::findStruct<database::Account> (sql, "accountName", "joe").has_value ());
+//       }
+//     }
+//   }
+// }
 
 SCENARIO ("create an character with createCharacter", "[createCharacter]")
 {
@@ -65,30 +65,30 @@ SCENARIO ("create an character with createCharacter", "[createCharacter]")
   }
 }
 
-SCENARIO ("create an account with handleMessage", "[handleMessage]")
-{
-  GIVEN ("empty database")
-  {
-    database::createEmptyDatabase ();
-    database::createTables ();
-    WHEN ("the account gets created")
-    {
-      auto accountAsString = handleMessage ("create account|joe,doe").at (0);
-      THEN ("account is in table and result from create account can be serialized into account object")
-      {
-        auto accountStringStream = std::stringstream{};
-        accountStringStream << accountAsString;
-        boost::archive::text_iarchive ia (accountStringStream);
-        auto account = database::Account{};
-        ia >> account;
-        REQUIRE (account.accountName == "joe");
-        soci::session sql (soci::sqlite3, pathToTestDatabase);
-        REQUIRE (confu_soci::findStruct<database::Account> (sql, "accountName", "joe").has_value ());
-      }
-    }
-  }
-}
-}
+// SCENARIO ("create an account with handleMessage", "[handleMessage]")
+// {
+//   GIVEN ("empty database")
+//   {
+//     database::createEmptyDatabase ();
+//     database::createTables ();
+//     WHEN ("the account gets created")
+//     {
+//       auto accountAsString = handleMessage ("create account|joe,doe").at (0);
+//       THEN ("account is in table and result from create account can be serialized into account object")
+//       {
+//         auto accountStringStream = std::stringstream{};
+//         accountStringStream << accountAsString;
+//         boost::archive::text_iarchive ia (accountStringStream);
+//         auto account = database::Account{};
+//         ia >> account;
+//         REQUIRE (account.accountName == "joe");
+//         soci::session sql (soci::sqlite3, pathToTestDatabase);
+//         REQUIRE (confu_soci::findStruct<database::Account> (sql, "accountName", "joe").has_value ());
+//       }
+//     }
+//   }
+// }
+// }
 
 TEST_CASE ("check_hashed_pw", "[check_hashed_pw]")
 {
@@ -102,4 +102,5 @@ TEST_CASE ("check_hashed_pw", "[check_hashed_pw]")
   auto pw_hash = pw_to_hash (pw);
   std::cout << pw_hash << std::endl;
   REQUIRE (check_hashed_pw (pw_hash, pw));
+}
 }
