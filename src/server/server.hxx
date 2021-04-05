@@ -18,7 +18,7 @@ private:
 
   boost::asio::awaitable<void> readFromClient (std::shared_ptr<boost::beast::websocket::stream<boost::beast::tcp_stream> > ws_);
 
-  boost::asio::awaitable<void> writeToClient (std::shared_ptr<boost::beast::websocket::stream<boost::beast::tcp_stream> > ws_);
+  boost::asio::awaitable<void> writeToClient (std::shared_ptr<boost::beast::websocket::stream<boost::beast::tcp_stream> > ws_, std::string connectionId);
 
   boost::asio::io_context &_io_context;
   boost::asio::thread_pool &_pool;

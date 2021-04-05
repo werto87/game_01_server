@@ -25,6 +25,7 @@
 #include <boost/uuid/uuid_io.hpp>
 #include <coroutine>
 #include <iostream>
+#include <sodium.h>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -66,10 +67,11 @@ Server::readFromClient (std::shared_ptr<websocket::stream<tcp_stream> > ws_)
 }
 
 awaitable<void>
-Server::writeToClient (std::shared_ptr<websocket::stream<tcp_stream> > ws_)
+Server::writeToClient (std::shared_ptr<websocket::stream<tcp_stream> > ws_, std::string connectionId)
 {
   try
     {
+      co_await ws_->async_write (buffer ("connection id|" + connectionId), use_awaitable);
       for (;;)
         {
           auto timer = steady_timer (co_await this_coro::executor);
@@ -78,9 +80,19 @@ Server::writeToClient (std::shared_ptr<websocket::stream<tcp_stream> > ws_)
           co_await timer.async_wait (use_awaitable);
           while (not msgToSend.empty ())
             {
-              auto msg = std::move (msgToSend.front ());
-              msgToSend.pop_front ();
-              co_await ws_->async_write (buffer (msg), use_awaitable);
+              // blocks if connection with id 1 does not read the message
+              // so connection with id 2 will wait forever
+              if (boost::contains (msgToSend.front (), connectionId))
+                {
+                  auto tmpMsg = std::move (msgToSend.front ());
+                  std::cout << "send msg: " << tmpMsg << std::endl;
+                  msgToSend.pop_front ();
+                  co_await ws_->async_write (buffer (tmpMsg), use_awaitable);
+                }
+              else
+                {
+                  break;
+                }
             }
         }
     }
@@ -101,10 +113,11 @@ Server::listener ()
       auto ws_ = std::make_shared<websocket::stream<tcp_stream> > (std::move (socket));
       ws_->set_option (websocket::stream_base::timeout::suggested (role_type::server));
       ws_->set_option (websocket::stream_base::decorator ([] (websocket::response_type &res) { res.set (http::field::server, std::string (BOOST_BEAST_VERSION_STRING) + " websocket-server-async"); }));
+
       co_await ws_->async_accept (use_awaitable);
       co_spawn (
           executor, [this, ws_] () mutable { return readFromClient (ws_); }, detached);
       co_spawn (
-          executor, [this, ws_] () mutable { return writeToClient (ws_); }, detached);
+          executor, [this, ws_] () mutable { return writeToClient (ws_, std::to_string (randombytes_random ())); }, detached);
     }
 }

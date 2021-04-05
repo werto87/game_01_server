@@ -8,6 +8,11 @@
 int
 main ()
 {
+#ifdef DEBUG
+  std::cout << "DEBUG" << std::endl;
+#else
+  std::cout << "NO DEBUG" << std::endl;
+#endif
   try
     {
       if (sodium_init () < 0)
