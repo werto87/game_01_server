@@ -9,7 +9,7 @@
 class Server
 {
 public:
-  Server (boost::asio::io_context &_io_context);
+  Server (boost::asio::io_context &io_context, boost::asio::thread_pool &pool);
 
   boost::asio::awaitable<void> listener ();
 
@@ -21,6 +21,7 @@ private:
   boost::asio::awaitable<void> writeToClient (std::shared_ptr<boost::beast::websocket::stream<boost::beast::tcp_stream> > ws_);
 
   boost::asio::io_context &_io_context;
+  boost::asio::thread_pool &_pool;
   std::deque<std::string> msgToSend{};
 };
 

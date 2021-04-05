@@ -34,7 +34,7 @@
 using namespace boost::beast;
 using namespace boost::asio;
 
-Server::Server (boost::asio::io_context &io_context) : _io_context{ io_context } {}
+Server::Server (boost::asio::io_context &io_context, boost::asio::thread_pool &pool) : _io_context{ io_context }, _pool{ pool } {}
 
 awaitable<std::string>
 Server::my_read (websocket::stream<tcp_stream> &ws_)
@@ -55,7 +55,7 @@ Server::readFromClient (std::shared_ptr<websocket::stream<tcp_stream> > ws_)
       for (;;)
         {
           auto readResult = co_await my_read (*ws_);
-          auto result = co_await handleMessage (readResult, _io_context);
+          auto result = co_await handleMessage (readResult, _io_context, _pool);
           msgToSend.insert (msgToSend.end (), make_move_iterator (result.begin ()), make_move_iterator (result.end ()));
         }
     }

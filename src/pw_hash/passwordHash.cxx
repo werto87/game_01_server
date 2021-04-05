@@ -21,7 +21,7 @@ std::string
 pw_to_hash (std::string const &password)
 {
   auto hashed_password = std::array<char, crypto_pwhash_STRBYTES>{};
-  if (crypto_pwhash_str (hashed_password.begin (), password.data (), password.size (), 4, crypto_pwhash_MEMLIMIT_SENSITIVE) != 0)
+  if (crypto_pwhash_str (hashed_password.begin (), password.data (), password.size (), 3, crypto_pwhash_MEMLIMIT_SENSITIVE / 64) != 0)
     {
       std::cout << "out of memory" << std::endl;
       std::terminate ();

@@ -77,6 +77,8 @@ if (CMAKE_BINARY_DIR)
 target_compile_definitions(${TARGET_NAME} PRIVATE PATH_TO_BINARY="${CMAKE_BINARY_DIR}")
 endif()
 
+
+target_compile_definitions(${TARGET_NAME} PUBLIC "$<$<CONFIG:DEBUG>:DEBUG>")
 ######## add sub dir
 
 
