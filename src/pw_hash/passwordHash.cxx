@@ -1,4 +1,5 @@
 #include "src/pw_hash/passwordHash.hxx"
+#include "src/pw_hash/constant.hxx"
 #include <algorithm>
 #include <array>
 #include <boost/asio.hpp>
@@ -21,7 +22,7 @@ std::string
 pw_to_hash (std::string const &password)
 {
   auto hashed_password = std::array<char, crypto_pwhash_STRBYTES>{};
-  if (crypto_pwhash_str (hashed_password.begin (), password.data (), password.size (), 3, crypto_pwhash_MEMLIMIT_SENSITIVE / 64) != 0)
+  if (crypto_pwhash_str (hashed_password.begin (), password.data (), password.size (), hash_opt, hash_memory) != 0)
     {
       std::cout << "out of memory" << std::endl;
       std::terminate ();
