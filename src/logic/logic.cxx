@@ -81,8 +81,6 @@ loginAccount (std::string const &msg, boost::asio::io_context &io_context)
       boost::algorithm::split (splitMesssage, splitMesssage.at (1), boost::is_any_of (","));
       if (splitMesssage.size () >= 2)
         {
-          std::cout << splitMesssage.at (0) << std::endl;
-          std::cout << splitMesssage.at (1) << std::endl;
           // TODO thread pool should be a function parameter
           static boost::asio::thread_pool pool (2);
           soci::session sql (soci::sqlite3, pathToTestDatabase);
