@@ -16,13 +16,12 @@ public:
 private:
   boost::asio::awaitable<std::string> my_read (boost::beast::websocket::stream<boost::beast::tcp_stream> &ws_);
 
-  boost::asio::awaitable<void> readFromClient (std::shared_ptr<boost::beast::websocket::stream<boost::beast::tcp_stream> > ws_);
+  boost::asio::awaitable<void> readFromClient (std::shared_ptr<boost::beast::websocket::stream<boost::beast::tcp_stream> > ws_, std::shared_ptr<std::deque<std::string> > msgQueue);
 
-  boost::asio::awaitable<void> writeToClient (std::shared_ptr<boost::beast::websocket::stream<boost::beast::tcp_stream> > ws_, std::string connectionId);
+  boost::asio::awaitable<void> writeToClient (std::shared_ptr<boost::beast::websocket::stream<boost::beast::tcp_stream> > ws_, std::shared_ptr<std::deque<std::string> > msgQueue);
 
   boost::asio::io_context &_io_context;
   boost::asio::thread_pool &_pool;
-  std::deque<std::string> msgToSend{};
 };
 
 #endif /* AD140436_3FBA_4D63_8C0E_9113B92859E0 */

@@ -49,7 +49,7 @@ Server::my_read (websocket::stream<tcp_stream> &ws_)
 }
 
 awaitable<void>
-Server::readFromClient (std::shared_ptr<websocket::stream<tcp_stream> > ws_)
+Server::readFromClient (std::shared_ptr<websocket::stream<tcp_stream> > ws_, std::shared_ptr<std::deque<std::string> > msgQueue)
 {
   try
     {
@@ -57,7 +57,7 @@ Server::readFromClient (std::shared_ptr<websocket::stream<tcp_stream> > ws_)
         {
           auto readResult = co_await my_read (*ws_);
           auto result = co_await handleMessage (readResult, _io_context, _pool);
-          msgToSend.insert (msgToSend.end (), make_move_iterator (result.begin ()), make_move_iterator (result.end ()));
+          msgQueue->insert (msgQueue->end (), make_move_iterator (result.begin ()), make_move_iterator (result.end ()));
         }
     }
   catch (std::exception &e)
@@ -67,32 +67,22 @@ Server::readFromClient (std::shared_ptr<websocket::stream<tcp_stream> > ws_)
 }
 
 awaitable<void>
-Server::writeToClient (std::shared_ptr<websocket::stream<tcp_stream> > ws_, std::string connectionId)
+Server::writeToClient (std::shared_ptr<websocket::stream<tcp_stream> > ws_, std::shared_ptr<std::deque<std::string> > msgQueue)
 {
   try
     {
-      co_await ws_->async_write (buffer ("connection id|" + connectionId), use_awaitable);
       for (;;)
         {
           auto timer = steady_timer (co_await this_coro::executor);
           using namespace std::chrono_literals;
           timer.expires_after (1s);
           co_await timer.async_wait (use_awaitable);
-          while (not msgToSend.empty ())
+          while (not msgQueue->empty ())
             {
-              // blocks if connection with id 1 does not read the message
-              // so connection with id 2 will wait forever
-              if (boost::contains (msgToSend.front (), connectionId))
-                {
-                  auto tmpMsg = std::move (msgToSend.front ());
-                  std::cout << "send msg: " << tmpMsg << std::endl;
-                  msgToSend.pop_front ();
-                  co_await ws_->async_write (buffer (tmpMsg), use_awaitable);
-                }
-              else
-                {
-                  break;
-                }
+              auto tmpMsg = std::move (msgQueue->front ());
+              std::cout << "send msg: " << tmpMsg << std::endl;
+              msgQueue->pop_front ();
+              co_await ws_->async_write (buffer (tmpMsg), use_awaitable);
             }
         }
     }
@@ -111,13 +101,13 @@ Server::listener ()
     {
       ip::tcp::socket socket = co_await acceptor.async_accept (use_awaitable);
       auto ws_ = std::make_shared<websocket::stream<tcp_stream> > (std::move (socket));
+      auto msgQueue = std::make_shared<std::deque<std::string> > ();
       ws_->set_option (websocket::stream_base::timeout::suggested (role_type::server));
       ws_->set_option (websocket::stream_base::decorator ([] (websocket::response_type &res) { res.set (http::field::server, std::string (BOOST_BEAST_VERSION_STRING) + " websocket-server-async"); }));
-
       co_await ws_->async_accept (use_awaitable);
       co_spawn (
-          executor, [this, ws_] () mutable { return readFromClient (ws_); }, detached);
+          executor, [this, ws_, msgQueue] () mutable { return readFromClient (ws_, msgQueue); }, detached);
       co_spawn (
-          executor, [this, ws_] () mutable { return writeToClient (ws_, std::to_string (randombytes_random ())); }, detached);
+          executor, [this, ws_, msgQueue] () mutable { return writeToClient (ws_, msgQueue); }, detached);
     }
 }
