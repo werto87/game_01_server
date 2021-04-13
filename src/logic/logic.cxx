@@ -72,7 +72,7 @@ createAccount (std::string const &msg, boost::asio::io_context &io_context, boos
 boost::asio::awaitable<boost::optional<std::string> >
 loginAccount (std::string const &msg, boost::asio::io_context &io_context, boost::asio::thread_pool &pool)
 {
-  auto result = std::string{ "login result|false,Password and Account does not match " };
+  auto result = std::string{ "login result|false,Password and Account does not match" };
   std::vector<std::string> splitMesssage{};
   boost::algorithm::split (splitMesssage, msg, boost::is_any_of ("|"));
   if (splitMesssage.size () >= 2)
