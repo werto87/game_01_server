@@ -60,6 +60,7 @@ createAccount (std::string const &msg, boost::asio::io_context &io_context, boos
           auto hashedPw = co_await async_hash (pool, io_context, splitMesssage.at (1), boost::asio::use_awaitable);
           if (auto account = database::createAccount (splitMesssage.at (0), hashedPw))
             {
+              accountStringStream << "account|";
               boost::archive::text_oarchive accountArchive{ accountStringStream };
               accountArchive << account.value ();
             }
@@ -71,7 +72,7 @@ createAccount (std::string const &msg, boost::asio::io_context &io_context, boos
 boost::asio::awaitable<boost::optional<std::string> >
 loginAccount (std::string const &msg, boost::asio::io_context &io_context, boost::asio::thread_pool &pool)
 {
-  auto result = std::string{ "login result|false" };
+  auto result = std::string{ "login result|false,Password and Account does not match" };
   std::vector<std::string> splitMesssage{};
   boost::algorithm::split (splitMesssage, msg, boost::is_any_of ("|"));
   if (splitMesssage.size () >= 2)
@@ -83,7 +84,7 @@ loginAccount (std::string const &msg, boost::asio::io_context &io_context, boost
           auto account = confu_soci::findStruct<database::Account> (sql, "accountName", splitMesssage.at (0));
           if (account && co_await async_check_hashed_pw (pool, io_context, account->password, splitMesssage.at (1), boost::asio::use_awaitable))
             {
-              result = "login result|true";
+              result = "login result|true,ok";
             }
         }
     }
