@@ -43,4 +43,4 @@ createCharacter (std::string const &accoundId)
   return confu_soci::findStruct<Character> (sql, "id", confu_soci::insertStruct (sql, Character{ .id = {}, .positionX = {}, .positionY = {}, .positionZ = {}, .accountId = accoundId }, true, true));
 }
 
-} // namespace database
+} // namespace database 
