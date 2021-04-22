@@ -19,21 +19,14 @@
 #include <string>
 
 boost::asio::awaitable<std::vector<std::string> >
-handleMessage (std::string const &msg, boost::asio::io_context &io_context, boost::asio::thread_pool &pool)
+handleMessage (std::string const &msg, boost::asio::io_context &io_context, boost::asio::thread_pool &pool, std::map<std::string, durak::Game> &games)
 {
   auto result = std::vector<std::string>{};
-  if (boost::algorithm::starts_with (msg, "create account|"))
+  if (boost::algorithm::contains (msg, "create account|"))
     {
       if (auto accountAsString = co_await createAccount (msg, io_context, pool))
         {
           result.push_back (accountAsString.value ());
-        }
-    }
-  else if (boost::algorithm::contains (msg, "create character|"))
-    {
-      if (auto characterAsString = createCharacter (msg))
-        {
-          result.push_back (characterAsString.value ());
         }
     }
   else if (boost::algorithm::contains (msg, "login account|"))
@@ -42,6 +35,17 @@ handleMessage (std::string const &msg, boost::asio::io_context &io_context, boos
         {
           result.push_back (loginResult.value ());
         }
+    }
+  else if (boost::algorithm::contains (msg, "create game|"))
+    {
+      if (auto createGameResult = createGame (msg, games))
+        {
+          result.push_back (createGameResult.value ());
+        }
+    }
+  else
+    {
+      result.push_back ("error|unhandled message: " + msg);
     }
   co_return result;
 }
@@ -92,18 +96,19 @@ loginAccount (std::string const &msg, boost::asio::io_context &io_context, boost
 }
 
 boost::optional<std::string>
-createCharacter (std::string const &msg)
+createGame (std::string const &msg, std::map<std::string, durak::Game> &games)
 {
-  auto characterStringStream = std::stringstream{};
-  std::vector<std::string> splitMesssage{};
-  boost::algorithm::split (splitMesssage, msg, boost::is_any_of ("|"));
-  if (splitMesssage.size () >= 2)
-    {
-      if (auto character = database::createCharacter (splitMesssage.at (1)))
-        {
-          boost::archive::text_oarchive characterArchive{ characterStringStream };
-          characterArchive << character.value ();
-        }
-    }
-  return characterStringStream.str ();
+  // TODO check if account has game
+  // if account has no game create game
+  // if (not game)
+  //   {
+  // TODO add game to account
+  // TODO create game
+
+  //   }
+  // else
+  //   {
+  //     result.push_back ("error|logic: can not create game. Game is already running. msg: " + msg);
+  //   }
+  return {};
 }
