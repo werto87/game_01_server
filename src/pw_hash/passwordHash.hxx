@@ -4,6 +4,7 @@
 #include <array>
 #include <boost/asio.hpp>
 #include <boost/asio/awaitable.hpp>
+#include <boost/asio/execution/outstanding_work.hpp>
 #include <boost/asio/post.hpp>
 #include <boost/asio/thread_pool.hpp>
 #include <boost/asio/use_awaitable.hpp>
@@ -29,9 +30,10 @@ async_hash (boost::asio::thread_pool &pool, boost::asio::io_context &io_context,
 {
   return boost::asio::async_initiate<CompletionToken, void (std::string)> (
       [&] (auto completion_handler, std::string const &passwordToHash) {
-        boost::asio::post (pool, [&, completion_handler = std::move (completion_handler), passwordToHash] () mutable {
+        auto io_eq = boost::asio::prefer (io_context.get_executor (), boost::asio::execution::outstanding_work.tracked);
+        boost::asio::post (pool, [&, io_eq = std::move (io_eq), completion_handler = std::move (completion_handler), passwordToHash] () mutable {
           auto hashedPw = pw_to_hash (passwordToHash);
-          boost::asio::post (io_context, [hashedPw = std::move (hashedPw), completion_handler = std::move (completion_handler)] () mutable { completion_handler (hashedPw); });
+          boost::asio::post (io_eq, [hashedPw = std::move (hashedPw), completion_handler = std::move (completion_handler)] () mutable { completion_handler (hashedPw); });
         });
       },
       token, password);
@@ -43,9 +45,10 @@ async_check_hashed_pw (boost::asio::thread_pool &pool, boost::asio::io_context &
 {
   return boost::asio::async_initiate<CompletionToken, void (bool)> (
       [&] (auto completion_handler, std::string const &passwordToCheck, std::string const &hashedPw) {
-        boost::asio::post (pool, [&, completion_handler = std::move (completion_handler), passwordToCheck, hashedPw] () mutable {
+        auto io_eq = boost::asio::prefer (io_context.get_executor (), boost::asio::execution::outstanding_work.tracked);
+        boost::asio::post (pool, [&, io_eq = std::move (io_eq), completion_handler = std::move (completion_handler), passwordToCheck, hashedPw] () mutable {
           auto isCorrectPw = check_hashed_pw (passwordToCheck, hashedPw);
-          boost::asio::post (io_context, [isCorrectPw, completion_handler = std::move (completion_handler)] () mutable { completion_handler (isCorrectPw); });
+          boost::asio::post (io_eq, [isCorrectPw, completion_handler = std::move (completion_handler)] () mutable { completion_handler (isCorrectPw); });
         });
       },
       token, password, hashedPassword);
