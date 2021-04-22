@@ -1,6 +1,7 @@
 #ifndef AD140436_3FBA_4D63_8C0E_9113B92859E0
 #define AD140436_3FBA_4D63_8C0E_9113B92859E0
 
+#include "durak/game.hxx"
 #include "src/database/database.hxx"
 #include <boost/asio.hpp>
 #include <boost/beast.hpp>
@@ -22,6 +23,8 @@ private:
 
   boost::asio::io_context &_io_context;
   boost::asio::thread_pool &_pool;
+
+  std::vector<Game> games{};
 };
 
 #endif /* AD140436_3FBA_4D63_8C0E_9113B92859E0 */
