@@ -59,6 +59,7 @@ CONAN_PKG::confu_soci
 CONAN_PKG::confu_boost
 CONAN_PKG::boost
 CONAN_PKG::libsodium
+CONAN_PKG::durak
 )
 
 ####### create executable
