@@ -49,26 +49,29 @@ Server::my_read (websocket::stream<tcp_stream> &ws_)
 }
 
 awaitable<void>
-Server::readFromClient (std::shared_ptr<websocket::stream<tcp_stream> > ws_, std::shared_ptr<std::deque<std::string> > msgQueue)
+Server::readFromClient (std::string key)
 {
+  auto &user = users.at (key);
   try
     {
       for (;;)
         {
-          auto readResult = co_await my_read (*ws_);
-          auto result = co_await handleMessage (readResult, _io_context, _pool, games);
-          msgQueue->insert (msgQueue->end (), make_move_iterator (result.begin ()), make_move_iterator (result.end ()));
+          auto readResult = co_await my_read (user.websocket);
+          auto result = co_await handleMessage (readResult, _io_context, _pool, user);
+          user.msgQueue.insert (user.msgQueue.end (), make_move_iterator (result.begin ()), make_move_iterator (result.end ()));
         }
     }
   catch (std::exception &e)
     {
+      users.erase (key);
       std::cout << "echo  Exception: " << e.what () << std::endl;
     }
 }
 
 awaitable<void>
-Server::writeToClient (std::shared_ptr<websocket::stream<tcp_stream> > ws_, std::shared_ptr<std::deque<std::string> > msgQueue)
+Server::writeToClient (std::string key)
 {
+  auto &user = users.at (key);
   try
     {
       for (;;)
@@ -77,17 +80,18 @@ Server::writeToClient (std::shared_ptr<websocket::stream<tcp_stream> > ws_, std:
           using namespace std::chrono_literals;
           timer.expires_after (1s);
           co_await timer.async_wait (use_awaitable);
-          while (not msgQueue->empty ())
+          while (not user.msgQueue.empty ())
             {
-              auto tmpMsg = std::move (msgQueue->front ());
+              auto tmpMsg = std::move (user.msgQueue.front ());
               std::cout << "send msg: " << tmpMsg << std::endl;
-              msgQueue->pop_front ();
-              co_await ws_->async_write (buffer (tmpMsg), use_awaitable);
+              user.msgQueue.pop_front ();
+              co_await user.websocket.async_write (buffer (tmpMsg), use_awaitable);
             }
         }
     }
   catch (std::exception &e)
     {
+      users.erase (key);
       std::printf ("echo Exception:  %s\n", e.what ());
     }
 }
@@ -100,14 +104,14 @@ Server::listener ()
   for (;;)
     {
       ip::tcp::socket socket = co_await acceptor.async_accept (use_awaitable);
-      auto ws_ = std::make_shared<websocket::stream<tcp_stream> > (std::move (socket));
-      auto msgQueue = std::make_shared<std::deque<std::string> > ();
-      ws_->set_option (websocket::stream_base::timeout::suggested (role_type::server));
-      ws_->set_option (websocket::stream_base::decorator ([] (websocket::response_type &res) { res.set (http::field::server, std::string (BOOST_BEAST_VERSION_STRING) + " websocket-server-async"); }));
-      co_await ws_->async_accept (use_awaitable);
+      auto key = std::string{ "some key should be rnd" };
+      users.emplace (key, User{ .accountId = {}, .websocket = websocket::stream<tcp_stream> (std::move (socket)), .msgQueue = {} });
+      users.at (key).websocket.set_option (websocket::stream_base::timeout::suggested (role_type::server));
+      users.at (key).websocket.set_option (websocket::stream_base::decorator ([] (websocket::response_type &res) { res.set (http::field::server, std::string (BOOST_BEAST_VERSION_STRING) + " websocket-server-async"); }));
+      co_await users.at (key).websocket.async_accept (use_awaitable);
       co_spawn (
-          executor, [this, ws_, msgQueue] () mutable { return readFromClient (ws_, msgQueue); }, detached);
+          executor, [this, key] () mutable { return readFromClient (key); }, detached);
       co_spawn (
-          executor, [this, ws_, msgQueue] () mutable { return writeToClient (ws_, msgQueue); }, detached);
+          executor, [this, key] () mutable { return writeToClient (key); }, detached);
     }
 }

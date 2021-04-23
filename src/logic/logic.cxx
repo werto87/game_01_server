@@ -19,7 +19,7 @@
 #include <string>
 
 boost::asio::awaitable<std::vector<std::string> >
-handleMessage (std::string const &msg, boost::asio::io_context &io_context, boost::asio::thread_pool &pool, std::map<std::string, durak::Game> &games)
+handleMessage (std::string const &msg, boost::asio::io_context &io_context, boost::asio::thread_pool &pool, User &user)
 {
   auto result = std::vector<std::string>{};
   if (boost::algorithm::contains (msg, "create account|"))
@@ -31,16 +31,9 @@ handleMessage (std::string const &msg, boost::asio::io_context &io_context, boos
     }
   else if (boost::algorithm::contains (msg, "login account|"))
     {
-      if (auto loginResult = co_await loginAccount (msg, io_context, pool))
+      if (auto loginResult = co_await loginAccount (msg, io_context, pool, user))
         {
           result.push_back (loginResult.value ());
-        }
-    }
-  else if (boost::algorithm::contains (msg, "create game|"))
-    {
-      if (auto createGameResult = createGame (msg, games))
-        {
-          result.push_back (createGameResult.value ());
         }
     }
   else
@@ -74,7 +67,7 @@ createAccount (std::string const &msg, boost::asio::io_context &io_context, boos
 }
 
 boost::asio::awaitable<boost::optional<std::string> >
-loginAccount (std::string const &msg, boost::asio::io_context &io_context, boost::asio::thread_pool &pool)
+loginAccount (std::string const &msg, boost::asio::io_context &io_context, boost::asio::thread_pool &pool, User &user)
 {
   auto result = std::string{ "login result|false,Password and Account does not match" };
   std::vector<std::string> splitMesssage{};
@@ -88,27 +81,10 @@ loginAccount (std::string const &msg, boost::asio::io_context &io_context, boost
           auto account = confu_soci::findStruct<database::Account> (sql, "accountName", splitMesssage.at (0));
           if (account && co_await async_check_hashed_pw (pool, io_context, account->password, splitMesssage.at (1), boost::asio::use_awaitable))
             {
+              user.accountId = account->id;
               result = "login result|true,ok";
             }
         }
     }
   co_return result;
-}
-
-boost::optional<std::string>
-createGame (std::string const &msg, std::map<std::string, durak::Game> &games)
-{
-  // TODO check if account has game
-  // if account has no game create game
-  // if (not game)
-  //   {
-  // TODO add game to account
-  // TODO create game
-
-  //   }
-  // else
-  //   {
-  //     result.push_back ("error|logic: can not create game. Game is already running. msg: " + msg);
-  //   }
-  return {};
 }
