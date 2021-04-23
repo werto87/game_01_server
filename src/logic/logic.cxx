@@ -19,7 +19,7 @@
 #include <string>
 
 boost::asio::awaitable<std::vector<std::string> >
-handleMessage (std::string const &msg, boost::asio::io_context &io_context, boost::asio::thread_pool &pool, User &user)
+handleMessage (std::string const &msg, boost::asio::io_context &io_context, boost::asio::thread_pool &pool, std::map<size_t, User> &users, User &user)
 {
   auto result = std::vector<std::string>{};
   if (boost::algorithm::contains (msg, "create account|"))
@@ -35,6 +35,11 @@ handleMessage (std::string const &msg, boost::asio::io_context &io_context, boos
         {
           result.push_back (loginResult.value ());
         }
+    }
+  // broadcast message|channel,msg
+  else if (boost::algorithm::contains (msg, "broadcast message|"))
+    {
+      broadcastMessage (msg, users, user);
     }
   else
     {
@@ -87,4 +92,21 @@ loginAccount (std::string const &msg, boost::asio::io_context &io_context, boost
         }
     }
   co_return result;
+}
+
+void
+broadcastMessage (std::string const &msg, std::map<size_t, User> &users, User const &user)
+{
+  std::vector<std::string> splitMesssage{};
+  boost::algorithm::split (splitMesssage, msg, boost::is_any_of ("|"));
+  if (splitMesssage.size () >= 2)
+    {
+      boost::algorithm::split (splitMesssage, splitMesssage.at (1), boost::is_any_of (","));
+      if (splitMesssage.size () >= 2)
+        {
+          // TODO send msg to all users in the channel. Dont send (echo) the message to the sending user
+          auto &channel = splitMesssage.at (0);
+          auto &message = splitMesssage.at (1);
+        }
+    }
 }

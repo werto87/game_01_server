@@ -49,7 +49,7 @@ Server::my_read (websocket::stream<tcp_stream> &ws_)
 }
 
 awaitable<void>
-Server::readFromClient (std::string key)
+Server::readFromClient (size_t key)
 {
   auto &user = users.at (key);
   try
@@ -57,19 +57,20 @@ Server::readFromClient (std::string key)
       for (;;)
         {
           auto readResult = co_await my_read (user.websocket);
-          auto result = co_await handleMessage (readResult, _io_context, _pool, user);
+          auto result = co_await handleMessage (readResult, _io_context, _pool, users, user);
           user.msgQueue.insert (user.msgQueue.end (), make_move_iterator (result.begin ()), make_move_iterator (result.end ()));
         }
     }
   catch (std::exception &e)
     {
+      user.websocket.close ("user goes offline");
       users.erase (key);
       std::cout << "echo  Exception: " << e.what () << std::endl;
     }
 }
 
 awaitable<void>
-Server::writeToClient (std::string key)
+Server::writeToClient (size_t key)
 {
   auto &user = users.at (key);
   try
@@ -91,6 +92,7 @@ Server::writeToClient (std::string key)
     }
   catch (std::exception &e)
     {
+      user.websocket.close ("user goes offline");
       users.erase (key);
       std::printf ("echo Exception:  %s\n", e.what ());
     }
@@ -104,8 +106,9 @@ Server::listener ()
   for (;;)
     {
       ip::tcp::socket socket = co_await acceptor.async_accept (use_awaitable);
-      auto key = std::string{ "some key should be rnd" };
-      users.emplace (key, User{ .accountId = {}, .websocket = websocket::stream<tcp_stream> (std::move (socket)), .msgQueue = {} });
+      auto key = size_t{};
+      randombytes_buf (&key, sizeof (key));
+      users.emplace (key, User{ .accountId = {}, .websocket = websocket::stream<tcp_stream> (std::move (socket)), .msgQueue = {}, .communicationChannels = { "default" } });
       users.at (key).websocket.set_option (websocket::stream_base::timeout::suggested (role_type::server));
       users.at (key).websocket.set_option (websocket::stream_base::decorator ([] (websocket::response_type &res) { res.set (http::field::server, std::string (BOOST_BEAST_VERSION_STRING) + " websocket-server-async"); }));
       co_await users.at (key).websocket.async_accept (use_awaitable);
