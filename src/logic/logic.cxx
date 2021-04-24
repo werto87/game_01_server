@@ -14,9 +14,18 @@
 #include <boost/serialization/optional.hpp>
 #include <boost/type_index.hpp>
 #include <crypt.h>
+#include <pipes/filter.hpp>
+#include <pipes/pipes.hpp>
+#include <pipes/push_back.hpp>
+#include <pipes/transform.hpp>
+#include <range/v3/all.hpp>
+#include <range/v3/range.hpp>
+#include <range/v3/range_fwd.hpp>
+#include <range/v3/view/filter.hpp>
 #include <sodium.h>
 #include <sstream>
 #include <string>
+#include <utility>
 
 boost::asio::awaitable<std::vector<std::string> >
 handleMessage (std::string const &msg, boost::asio::io_context &io_context, boost::asio::thread_pool &pool, std::map<size_t, User> &users, User &user)
@@ -40,6 +49,16 @@ handleMessage (std::string const &msg, boost::asio::io_context &io_context, boos
   else if (boost::algorithm::contains (msg, "broadcast message|"))
     {
       broadcastMessage (msg, users, user);
+    }
+  // join channel|channel
+  else if (boost::algorithm::contains (msg, "join channel|"))
+    {
+      joinChannel (msg, user);
+    }
+  // leave channel|channel
+  else if (boost::algorithm::contains (msg, "leave channel|"))
+    {
+      leaveChannel (msg, user);
     }
   else
     {
@@ -95,7 +114,7 @@ loginAccount (std::string const &msg, boost::asio::io_context &io_context, boost
 }
 
 void
-broadcastMessage (std::string const &msg, std::map<size_t, User> &users, User const &user)
+broadcastMessage (std::string const &msg, std::map<size_t, User> &users, User const &sendingUser)
 {
   std::vector<std::string> splitMesssage{};
   boost::algorithm::split (splitMesssage, msg, boost::is_any_of ("|"));
@@ -104,9 +123,43 @@ broadcastMessage (std::string const &msg, std::map<size_t, User> &users, User co
       boost::algorithm::split (splitMesssage, splitMesssage.at (1), boost::is_any_of (","));
       if (splitMesssage.size () >= 2)
         {
-          // TODO send msg to all users in the channel. Dont send (echo) the message to the sending user
-          auto &channel = splitMesssage.at (0);
-          auto &message = splitMesssage.at (1);
+          for (auto &[key, user] : users | ranges::views::filter ([channel = splitMesssage.at (0), accountId = sendingUser.accountId] (auto const &keyUser) {
+                                     auto &user = std::get<1> (keyUser);
+                                     return user.accountId != accountId && user.communicationChannels.find (channel) != user.communicationChannels.end ();
+                                   }))
+            {
+              user.msgQueue.push_back (splitMesssage.at (1));
+            }
+        }
+    }
+}
+
+void
+joinChannel (std::string const &msg, User &user)
+{
+  std::vector<std::string> splitMesssage{};
+  boost::algorithm::split (splitMesssage, msg, boost::is_any_of ("|"));
+  if (splitMesssage.size () >= 2)
+    {
+      boost::algorithm::split (splitMesssage, splitMesssage.at (1), boost::is_any_of (","));
+      if (splitMesssage.size () >= 1)
+        {
+          user.communicationChannels.insert (splitMesssage.at (0));
+        }
+    }
+}
+
+void
+leaveChannel (std::string const &msg, User &user)
+{
+  std::vector<std::string> splitMesssage{};
+  boost::algorithm::split (splitMesssage, msg, boost::is_any_of ("|"));
+  if (splitMesssage.size () >= 2)
+    {
+      boost::algorithm::split (splitMesssage, splitMesssage.at (1), boost::is_any_of (","));
+      if (splitMesssage.size () >= 1)
+        {
+          user.communicationChannels.erase (splitMesssage.at (0));
         }
     }
 }

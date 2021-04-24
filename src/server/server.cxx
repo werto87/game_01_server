@@ -63,7 +63,7 @@ Server::readFromClient (size_t key)
     }
   catch (std::exception &e)
     {
-      user.websocket.close ("user goes offline");
+      user.websocket.close ("lost connection to user");
       users.erase (key);
       std::cout << "echo  Exception: " << e.what () << std::endl;
     }
@@ -92,7 +92,7 @@ Server::writeToClient (size_t key)
     }
   catch (std::exception &e)
     {
-      user.websocket.close ("user goes offline");
+      user.websocket.close ("lost connection to user");
       users.erase (key);
       std::printf ("echo Exception:  %s\n", e.what ());
     }
@@ -108,7 +108,7 @@ Server::listener ()
       ip::tcp::socket socket = co_await acceptor.async_accept (use_awaitable);
       auto key = size_t{};
       randombytes_buf (&key, sizeof (key));
-      users.emplace (key, User{ .accountId = {}, .websocket = websocket::stream<tcp_stream> (std::move (socket)), .msgQueue = {}, .communicationChannels = { "default" } });
+      users.emplace (key, User{ {}, boost::beast::websocket::stream<boost::beast::tcp_stream>{ std::move (socket) }, {}, { "default" } });
       users.at (key).websocket.set_option (websocket::stream_base::timeout::suggested (role_type::server));
       users.at (key).websocket.set_option (websocket::stream_base::decorator ([] (websocket::response_type &res) { res.set (http::field::server, std::string (BOOST_BEAST_VERSION_STRING) + " websocket-server-async"); }));
       co_await users.at (key).websocket.async_accept (use_awaitable);

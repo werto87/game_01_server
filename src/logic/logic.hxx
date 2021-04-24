@@ -12,6 +12,10 @@ boost::asio::awaitable<boost::optional<std::string> > createAccount (std::string
 
 boost::asio::awaitable<boost::optional<std::string> > loginAccount (std::string const &msg, boost::asio::io_context &io_context, boost::asio::thread_pool &pool, User &user);
 
-void broadcastMessage (std::string const &msg, std::map<size_t, User> &users, User const &user);
+void broadcastMessage (std::string const &msg, std::map<size_t, User> &users, User const &sendingUser);
+
+void joinChannel (std::string const &msg, User &user);
+
+void leaveChannel (std::string const &msg, User &user);
 
 #endif /* E18680A5_3B06_4019_A849_6CDB82D14796 */
