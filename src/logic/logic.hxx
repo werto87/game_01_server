@@ -14,7 +14,7 @@ boost::asio::awaitable<boost::optional<std::string> > loginAccount (std::string 
 
 void broadcastMessage (std::string const &msg, std::map<size_t, User> &users, User const &sendingUser);
 
-void joinChannel (std::string const &msg, User &user);
+boost::optional<std::string> joinChannel (std::string const &msg, User &user);
 
 void leaveChannel (std::string const &msg, User &user);
 

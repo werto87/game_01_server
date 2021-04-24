@@ -5,6 +5,7 @@
 #include "src/server/user.hxx"
 #include <boost/asio.hpp>
 #include <boost/beast.hpp>
+#include <cstddef>
 #include <queue>
 #include <string>
 class Server
@@ -20,6 +21,8 @@ private:
   boost::asio::awaitable<void> readFromClient (size_t key);
 
   boost::asio::awaitable<void> writeToClient (size_t key);
+
+  void removeUser (size_t userId, User &user);
 
   boost::asio::io_context &_io_context;
   boost::asio::thread_pool &_pool;

@@ -53,7 +53,10 @@ handleMessage (std::string const &msg, boost::asio::io_context &io_context, boos
   // join channel|channel
   else if (boost::algorithm::contains (msg, "join channel|"))
     {
-      joinChannel (msg, user);
+      if (auto joinChannelResult = joinChannel (msg, user))
+        {
+          result.push_back (joinChannelResult.value ());
+        }
     }
   // leave channel|channel
   else if (boost::algorithm::contains (msg, "leave channel|"))
@@ -128,13 +131,13 @@ broadcastMessage (std::string const &msg, std::map<size_t, User> &users, User co
                                      return user.accountId != accountId && user.communicationChannels.find (channel) != user.communicationChannels.end ();
                                    }))
             {
-              user.msgQueue.push_back (splitMesssage.at (1));
+              user.msgQueue.push_back ("broadcasted message for channel|" + splitMesssage.at (0) + ',' + splitMesssage.at (1));
             }
         }
     }
 }
 
-void
+boost::optional<std::string>
 joinChannel (std::string const &msg, User &user)
 {
   std::vector<std::string> splitMesssage{};
@@ -145,8 +148,10 @@ joinChannel (std::string const &msg, User &user)
       if (splitMesssage.size () >= 1)
         {
           user.communicationChannels.insert (splitMesssage.at (0));
+          return "join channel|" + splitMesssage.at (0);
         }
     }
+  return {};
 }
 
 void

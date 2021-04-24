@@ -24,6 +24,7 @@
 #include <boost/uuid/uuid_generators.hpp>
 #include <boost/uuid/uuid_io.hpp>
 #include <coroutine>
+#include <cstddef>
 #include <iostream>
 #include <sodium.h>
 #include <sstream>
@@ -63,10 +64,23 @@ Server::readFromClient (size_t key)
     }
   catch (std::exception &e)
     {
+      std::cout << "echo  Exception: " << e.what () << std::endl;
+      removeUser (key, user);
+    }
+}
+
+void
+Server::removeUser (size_t userId, User &user)
+{
+  try
+    {
       user.websocket.close ("lost connection to user");
-      users.erase (key);
+    }
+  catch (std::exception &e)
+    {
       std::cout << "echo  Exception: " << e.what () << std::endl;
     }
+  users.erase (userId);
 }
 
 awaitable<void>
@@ -92,9 +106,8 @@ Server::writeToClient (size_t key)
     }
   catch (std::exception &e)
     {
-      user.websocket.close ("lost connection to user");
-      users.erase (key);
-      std::printf ("echo Exception:  %s\n", e.what ());
+      std::cout << "echo  Exception: " << e.what () << std::endl;
+      removeUser (key, user);
     }
 }
 
