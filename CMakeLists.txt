@@ -61,6 +61,7 @@ CONAN_PKG::boost
 CONAN_PKG::libsodium
 CONAN_PKG::durak
 CONAN_PKG::range-v3
+CONAN_PKG::game_01_shared_class
 )
 
 ####### create executable

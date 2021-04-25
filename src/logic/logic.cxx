@@ -46,7 +46,7 @@ handleMessage (std::string const &msg, boost::asio::io_context &io_context, boos
         }
     }
   // broadcast message|channel,msg
-  else if (boost::algorithm::contains (msg, "broadcast message|"))
+  else if (user.accountId && boost::algorithm::contains (msg, "broadcast message|"))
     {
       broadcastMessage (msg, users, user);
     }
@@ -131,7 +131,8 @@ broadcastMessage (std::string const &msg, std::map<size_t, User> &users, User co
                                      return user.accountId != accountId && user.communicationChannels.find (channel) != user.communicationChannels.end ();
                                    }))
             {
-              user.msgQueue.push_back ("broadcasted message for channel|" + splitMesssage.at (0) + ',' + splitMesssage.at (1));
+              // TODO seperator should not be ',' it should be something less used something which has no reason to be in text
+              user.msgQueue.push_back ("broadcasted message for channel|" + user.accountId.value () + ',' + splitMesssage.at (0) + ',' + splitMesssage.at (1));
             }
         }
     }
