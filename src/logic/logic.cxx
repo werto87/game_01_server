@@ -13,7 +13,9 @@
 #include <boost/optional/optional_io.hpp>
 #include <boost/serialization/optional.hpp>
 #include <boost/type_index.hpp>
+#include <confu_boost/confuBoost.hxx>
 #include <crypt.h>
+#include <game_01_shared_class/serialization.hxx>
 #include <pipes/filter.hpp>
 #include <pipes/pipes.hpp>
 #include <pipes/push_back.hpp>
@@ -51,11 +53,16 @@ handleMessage (std::string const &msg, boost::asio::io_context &io_context, boos
       broadcastMessage (msg, users, user);
     }
   // join channel|channel
-  else if (boost::algorithm::contains (msg, "join channel|"))
+  else if (boost::algorithm::contains (msg, "JoinChannel|"))
     {
-      if (auto joinChannelResult = joinChannel (msg, user))
+      std::vector<std::string> splitMesssage{};
+      boost::algorithm::split (splitMesssage, msg, boost::is_any_of ("|"));
+      if (splitMesssage.size () >= 2)
         {
-          result.push_back (joinChannelResult.value ());
+          if (auto joinChannelResult = joinChannel (confu_boost::toObject<shared_class::JoinChannel> (splitMesssage.at (1)), user))
+            {
+              result.push_back (joinChannelResult.value ());
+            }
         }
     }
   // leave channel|channel
@@ -153,6 +160,13 @@ joinChannel (std::string const &msg, User &user)
         }
     }
   return {};
+}
+
+boost::optional<std::string>
+joinChannel (shared_class::JoinChannel const &joinChannel, User &user)
+{
+  user.communicationChannels.insert (joinChannel.channel);
+  return "JoinChannel|" + confu_boost::toString (joinChannel);
 }
 
 void
