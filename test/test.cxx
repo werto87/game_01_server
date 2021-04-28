@@ -2,18 +2,38 @@
 #include "src/logic/logic.hxx"
 #include "src/pw_hash/passwordHash.hxx"
 #include "src/server/user.hxx"
+#include <boost/algorithm/algorithm.hpp>
+#include <boost/algorithm/string.hpp>
+#include <boost/algorithm/string/predicate.hpp>
+#include <boost/algorithm/string/split.hpp>
 #include <boost/archive/basic_text_iarchive.hpp>
 #include <boost/archive/basic_text_oarchive.hpp>
 #include <boost/archive/text_iarchive.hpp>
+#include <boost/archive/text_oarchive.hpp>
 #include <boost/asio.hpp>
 #include <boost/beast.hpp>
+#include <boost/date_time/posix_time/posix_time_duration.hpp>
+#include <boost/fusion/include/pair.hpp>
+#include <boost/fusion/include/sequence.hpp>
+#include <boost/fusion/include/value_at.hpp>
+#include <boost/fusion/sequence.hpp>
+#include <boost/fusion/sequence/intrinsic/value_at.hpp>
+#include <boost/fusion/support/pair.hpp>
+#include <boost/optional.hpp>
+#include <boost/optional/optional_io.hpp>
+#include <boost/serialization/optional.hpp>
+#include <boost/type_index.hpp>
 #include <catch2/catch.hpp>
+#include <confu_boost/confuBoost.hxx>
 #include <confu_soci/convenienceFunctionForSoci.hxx>
+#include <functional>
 #include <game_01_shared_class/serialization.hxx>
 #include <iostream>
 #include <iterator>
 #include <sodium.h>
 #include <span>
+#include <src/database/database.hxx>
+
 namespace test
 {
 
@@ -31,14 +51,8 @@ TEST_CASE ("check_hashed_pw", "[check_hashed_pw]")
   REQUIRE (check_hashed_pw (pw_hash, pw));
 }
 
-TEST_CASE ("joinChannelasda ", "[joinChannelasdsa]")
+TEST_CASE ("playground ", "[playground]")
 {
-  boost::asio::io_context io_context (1);
-  boost::asio::ip::tcp::socket socket{ io_context };
-  auto user = User{ {}, boost::beast::websocket::stream<boost::beast::tcp_stream>{ std::move (socket) }, {}, { "default" } };
-  auto result = joinChannel (shared_class::JoinChannel{ .channel = { "testChannel" } }, user);
-  std::cout << confu_boost::toString (shared_class::JoinChannel{ .channel = { "testChannel" } }) << std::endl;
-  REQUIRE (result);
-  std::cout << result.value ();
+  // playground
 }
 }

@@ -9,6 +9,10 @@
 #include <boost/archive/text_iarchive.hpp>
 #include <boost/archive/text_oarchive.hpp>
 #include <boost/date_time/posix_time/posix_time_duration.hpp>
+#include <boost/fusion/include/pair.hpp>
+#include <boost/fusion/include/sequence.hpp>
+#include <boost/fusion/sequence.hpp>
+#include <boost/fusion/support/pair.hpp>
 #include <boost/optional.hpp>
 #include <boost/optional/optional_io.hpp>
 #include <boost/serialization/optional.hpp>
@@ -16,6 +20,7 @@
 #include <confu_boost/confuBoost.hxx>
 #include <crypt.h>
 #include <game_01_shared_class/serialization.hxx>
+#include <iostream>
 #include <pipes/filter.hpp>
 #include <pipes/pipes.hpp>
 #include <pipes/push_back.hpp>
@@ -27,159 +32,115 @@
 #include <sodium.h>
 #include <sstream>
 #include <string>
+#include <type_traits>
 #include <utility>
+#include <variant>
+#include <vector>
+
+template <class... Ts> struct overloaded : Ts...
+{
+  using Ts::operator()...;
+};
+template <class... Ts> overloaded (Ts...) -> overloaded<Ts...>;
 
 boost::asio::awaitable<std::vector<std::string> >
 handleMessage (std::string const &msg, boost::asio::io_context &io_context, boost::asio::thread_pool &pool, std::map<size_t, User> &users, User &user)
 {
   auto result = std::vector<std::string>{};
-  if (boost::algorithm::contains (msg, "create account|"))
+  std::vector<std::string> splitMesssage{};
+  boost::algorithm::split (splitMesssage, msg, boost::is_any_of ("|"));
+  if (splitMesssage.size () == 2)
     {
-      if (auto accountAsString = co_await createAccount (msg, io_context, pool))
+      auto const &typeToSearch = splitMesssage.at (0);
+      auto const &objectAsString = splitMesssage.at (1);
+      if (typeToSearch == "CreateAccount")
         {
-          result.push_back (accountAsString.value ());
+          result.push_back (co_await createAccount (objectAsString, io_context, pool));
+        }
+      else if (typeToSearch == "LoginAccount")
+        {
+          result.push_back (co_await loginAccount (objectAsString, io_context, pool, user));
+        }
+      // broadcast message|channel,msg
+      else if (user.accountId && typeToSearch == "BroadcastMessage")
+        {
+          broadcastMessage (objectAsString, users, user);
+        }
+      // join channel|channel
+      else if (user.accountId && typeToSearch == "JoinChannel")
+        {
+          result.push_back (joinChannel (objectAsString, user));
+        }
+      // leave channel|channel
+      else if (user.accountId && typeToSearch == "LeaveChannel")
+        {
+          leaveChannel (objectAsString, user);
+        }
+      else
+        {
+          result.push_back ("error|unhandled message: " + msg);
         }
     }
-  else if (boost::algorithm::contains (msg, "login account|"))
+  co_return result;
+}
+
+boost::asio::awaitable<std::string>
+createAccount (std::string objectAsString, boost::asio::io_context &io_context, boost::asio::thread_pool &pool)
+{
+  auto createAccountObject = confu_boost::toObject<shared_class::CreateAccount> (objectAsString);
+  auto hashedPw = co_await async_hash (pool, io_context, createAccountObject.password, boost::asio::use_awaitable);
+  if (auto account = database::createAccount (createAccountObject.accountName, hashedPw))
     {
-      if (auto loginResult = co_await loginAccount (msg, io_context, pool, user))
-        {
-          result.push_back (loginResult.value ());
-        }
-    }
-  // broadcast message|channel,msg
-  else if (user.accountId && boost::algorithm::contains (msg, "broadcast message|"))
-    {
-      broadcastMessage (msg, users, user);
-    }
-  // join channel|channel
-  else if (boost::algorithm::contains (msg, "JoinChannel|"))
-    {
-      std::vector<std::string> splitMesssage{};
-      boost::algorithm::split (splitMesssage, msg, boost::is_any_of ("|"));
-      if (splitMesssage.size () >= 2)
-        {
-          if (auto joinChannelResult = joinChannel (confu_boost::toObject<shared_class::JoinChannel> (splitMesssage.at (1)), user))
-            {
-              result.push_back (joinChannelResult.value ());
-            }
-        }
-    }
-  // leave channel|channel
-  else if (boost::algorithm::contains (msg, "leave channel|"))
-    {
-      leaveChannel (msg, user);
+      co_return objectToStringWithObjectName (shared_class::CreateAccountSuccess{ .accountId = account->id, .accountName = account->accountName });
     }
   else
     {
-      result.push_back ("error|unhandled message: " + msg);
+      co_return objectToStringWithObjectName (shared_class::CreateAccountError{ .accountName = createAccountObject.accountName, .error = "account already created" });
     }
-  co_return result;
 }
 
-boost::asio::awaitable<boost::optional<std::string> >
-createAccount (std::string const &msg, boost::asio::io_context &io_context, boost::asio::thread_pool &pool)
+boost::asio::awaitable<std::string>
+loginAccount (std::string objectAsString, boost::asio::io_context &io_context, boost::asio::thread_pool &pool, User &user)
 {
-  auto accountStringStream = std::stringstream{};
-  std::vector<std::string> splitMesssage{};
-  boost::algorithm::split (splitMesssage, msg, boost::is_any_of ("|"));
-  if (splitMesssage.size () >= 2)
+  auto loginAccountObject = confu_boost::toObject<shared_class::LoginAccount> (objectAsString);
+  soci::session sql (soci::sqlite3, pathToTestDatabase);
+  auto account = confu_soci::findStruct<database::Account> (sql, "accountName", loginAccountObject.accountName);
+  if (account && co_await async_check_hashed_pw (pool, io_context, account->password, loginAccountObject.password, boost::asio::use_awaitable))
     {
-      boost::algorithm::split (splitMesssage, splitMesssage.at (1), boost::is_any_of (","));
-      if (splitMesssage.size () >= 2)
-        {
-          auto hashedPw = co_await async_hash (pool, io_context, splitMesssage.at (1), boost::asio::use_awaitable);
-          if (auto account = database::createAccount (splitMesssage.at (0), hashedPw))
-            {
-              accountStringStream << "account|";
-              boost::archive::text_oarchive accountArchive{ accountStringStream };
-              accountArchive << account.value ();
-            }
-        }
+      user.accountId = account->id;
+      co_return objectToStringWithObjectName (shared_class::LoginAccountSuccess{ .accountId = account->id, .accountName = loginAccountObject.accountName });
     }
-  co_return accountStringStream.str ();
-}
-
-boost::asio::awaitable<boost::optional<std::string> >
-loginAccount (std::string const &msg, boost::asio::io_context &io_context, boost::asio::thread_pool &pool, User &user)
-{
-  auto result = std::string{ "login result|false,Password and Account does not match" };
-  std::vector<std::string> splitMesssage{};
-  boost::algorithm::split (splitMesssage, msg, boost::is_any_of ("|"));
-  if (splitMesssage.size () >= 2)
+  else
     {
-      boost::algorithm::split (splitMesssage, splitMesssage.at (1), boost::is_any_of (","));
-      if (splitMesssage.size () >= 2)
-        {
-          soci::session sql (soci::sqlite3, pathToTestDatabase);
-          auto account = confu_soci::findStruct<database::Account> (sql, "accountName", splitMesssage.at (0));
-          if (account && co_await async_check_hashed_pw (pool, io_context, account->password, splitMesssage.at (1), boost::asio::use_awaitable))
-            {
-              user.accountId = account->id;
-              result = "login result|true,ok";
-            }
-        }
+      co_return objectToStringWithObjectName (shared_class::LoginAccountError{ .accountName = loginAccountObject.accountName, .error = "Incorrect username or password" });
     }
-  co_return result;
 }
 
 void
-broadcastMessage (std::string const &msg, std::map<size_t, User> &users, User const &sendingUser)
+broadcastMessage (std::string const &objectAsString, std::map<size_t, User> &users, User const &sendingUser)
 {
-  std::vector<std::string> splitMesssage{};
-  boost::algorithm::split (splitMesssage, msg, boost::is_any_of ("|"));
-  if (splitMesssage.size () >= 2)
+  auto broadCastMessageObject = confu_boost::toObject<shared_class::BroadCastMessage> (objectAsString);
+  for (auto &[key, user] : users | ranges::views::filter ([channel = broadCastMessageObject.channel, accountId = sendingUser.accountId] (auto const &keyUser) {
+                             auto &user = std::get<1> (keyUser);
+                             return user.accountId != accountId && user.communicationChannels.find (channel) != user.communicationChannels.end ();
+                           }))
     {
-      boost::algorithm::split (splitMesssage, splitMesssage.at (1), boost::is_any_of (","));
-      if (splitMesssage.size () >= 2)
-        {
-          for (auto &[key, user] : users | ranges::views::filter ([channel = splitMesssage.at (0), accountId = sendingUser.accountId] (auto const &keyUser) {
-                                     auto &user = std::get<1> (keyUser);
-                                     return user.accountId != accountId && user.communicationChannels.find (channel) != user.communicationChannels.end ();
-                                   }))
-            {
-              // TODO seperator should not be ',' it should be something less used something which has no reason to be in text
-              user.msgQueue.push_back ("broadcasted message for channel|" + user.accountId.value () + ',' + splitMesssage.at (0) + ',' + splitMesssage.at (1));
-            }
-        }
+      auto message = shared_class::Message{ .fromAccount = sendingUser.accountId.value (), .channel = broadCastMessageObject.channel, .message = broadCastMessageObject.message };
+      user.msgQueue.push_back (objectToStringWithObjectName (std::move (message)));
     }
 }
 
-boost::optional<std::string>
-joinChannel (std::string const &msg, User &user)
+std::string
+joinChannel (std::string const &objectAsString, User &user)
 {
-  std::vector<std::string> splitMesssage{};
-  boost::algorithm::split (splitMesssage, msg, boost::is_any_of ("|"));
-  if (splitMesssage.size () >= 2)
-    {
-      boost::algorithm::split (splitMesssage, splitMesssage.at (1), boost::is_any_of (","));
-      if (splitMesssage.size () >= 1)
-        {
-          user.communicationChannels.insert (splitMesssage.at (0));
-          return "join channel|" + splitMesssage.at (0);
-        }
-    }
-  return {};
-}
-
-boost::optional<std::string>
-joinChannel (shared_class::JoinChannel const &joinChannel, User &user)
-{
-  user.communicationChannels.insert (joinChannel.channel);
-  return "JoinChannel|" + confu_boost::toString (joinChannel);
+  auto joinChannelObject = confu_boost::toObject<shared_class::JoinChannel> (objectAsString);
+  user.communicationChannels.insert (joinChannelObject.channel);
+  return objectToStringWithObjectName (shared_class::JoinChannelSuccess{ .channel = joinChannelObject.channel });
 }
 
 void
-leaveChannel (std::string const &msg, User &user)
+leaveChannel (std::string const &objectAsString, User &user)
 {
-  std::vector<std::string> splitMesssage{};
-  boost::algorithm::split (splitMesssage, msg, boost::is_any_of ("|"));
-  if (splitMesssage.size () >= 2)
-    {
-      boost::algorithm::split (splitMesssage, splitMesssage.at (1), boost::is_any_of (","));
-      if (splitMesssage.size () >= 1)
-        {
-          user.communicationChannels.erase (splitMesssage.at (0));
-        }
-    }
+  auto leaveChannelObject = confu_boost::toObject<shared_class::LeaveChannel> (objectAsString);
+  user.communicationChannels.erase (leaveChannelObject.channel);
 }
