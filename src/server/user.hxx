@@ -16,7 +16,6 @@ struct User
   const User &operator= (const User &) = delete;
   User (User &&) = default;
   User &operator= (User &&) = delete;
-  //~User () { websocket.close ("user goes offline"); }
 
   boost::optional<std::string> accountId{}; // has value if user is logged in
   boost::beast::websocket::stream<boost::beast::tcp_stream> websocket;

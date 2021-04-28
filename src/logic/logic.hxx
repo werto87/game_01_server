@@ -12,9 +12,9 @@ boost::asio::awaitable<std::vector<std::string> > handleMessage (std::string con
 
 boost::asio::awaitable<std::string> createAccount (std::string objectAsString, boost::asio::io_context &io_context, boost::asio::thread_pool &pool);
 
-boost::asio::awaitable<std::string> loginAccount (std::string objectAsString, boost::asio::io_context &io_context, boost::asio::thread_pool &pool, User &user);
+boost::asio::awaitable<std::string> loginAccount (std::string objectAsString, boost::asio::io_context &io_context, std::map<size_t, User> &users, User &user, boost::asio::thread_pool &pool);
 
-void broadcastMessage (std::string const &objectAsString, std::map<size_t, User> &users, User const &sendingUser);
+std::string broadCastMessage (std::string const &objectAsString, std::map<size_t, User> &users, User const &sendingUser);
 
 std::string joinChannel (std::string const &objectAsString, User &user);
 
