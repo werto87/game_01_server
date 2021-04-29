@@ -14,6 +14,8 @@ boost::asio::awaitable<std::string> createAccount (std::string objectAsString, b
 
 boost::asio::awaitable<std::string> loginAccount (std::string objectAsString, boost::asio::io_context &io_context, std::map<size_t, User> &users, User &user, boost::asio::thread_pool &pool);
 
+std::string logoutAccount (User &user);
+
 std::string broadCastMessage (std::string const &objectAsString, std::map<size_t, User> &users, User const &sendingUser);
 
 std::string joinChannel (std::string const &objectAsString, User &user);

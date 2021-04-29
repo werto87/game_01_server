@@ -75,6 +75,10 @@ handleMessage (std::string const &msg, boost::asio::io_context &io_context, boos
         {
           leaveChannel (objectAsString, user);
         }
+      else if (typeToSearch == "LogoutAccount")
+        {
+          result.push_back (logoutAccount (user));
+        }
       else
         {
           std::cout << "could not find a match for typeToSearch '" << typeToSearch << "'" << std::endl;
@@ -135,6 +139,15 @@ loginAccount (std::string objectAsString, boost::asio::io_context &io_context, s
     {
       co_return objectToStringWithObjectName (shared_class::LoginAccountError{ .accountName = loginAccountObject.accountName, .error = "Incorrect username or password" });
     }
+}
+
+std::string
+logoutAccount (User &user)
+{
+  user.accountId = {};
+  user.msgQueue.clear ();
+  user.communicationChannels.clear ();
+  return objectToStringWithObjectName (shared_class::LogoutAccountSuccess{});
 }
 
 std::string
