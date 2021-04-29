@@ -46,7 +46,7 @@ template <class... Ts> struct overloaded : Ts...
 template <class... Ts> overloaded (Ts...) -> overloaded<Ts...>;
 
 boost::asio::awaitable<std::vector<std::string> >
-handleMessage (std::string const &msg, boost::asio::io_context &io_context, boost::asio::thread_pool &pool, std::map<size_t, User> &users, User &user)
+handleMessage (std::string const &msg, boost::asio::io_context &io_context, boost::asio::thread_pool &pool, std::list<User> &users, User &user)
 {
   auto result = std::vector<std::string>{};
   std::vector<std::string> splitMesssage{};
@@ -78,6 +78,14 @@ handleMessage (std::string const &msg, boost::asio::io_context &io_context, boos
       else if (typeToSearch == "LogoutAccount")
         {
           result.push_back (logoutAccount (user));
+        }
+      else if (typeToSearch == "CreateGameLobby")
+        {
+          result.push_back (createGameLobby (user));
+        }
+      else if (typeToSearch == "JoinGameLobby")
+        {
+          result.push_back (joinGameLobby (user));
         }
       else
         {
@@ -112,13 +120,13 @@ createAccount (std::string objectAsString, boost::asio::io_context &io_context, 
 }
 
 boost::asio::awaitable<std::string>
-loginAccount (std::string objectAsString, boost::asio::io_context &io_context, std::map<size_t, User> &users, User &user, boost::asio::thread_pool &pool)
+loginAccount (std::string objectAsString, boost::asio::io_context &io_context, std::list<User> &users, User &user, boost::asio::thread_pool &pool)
 {
   auto loginAccountObject = confu_boost::toObject<shared_class::LoginAccount> (objectAsString);
   soci::session sql (soci::sqlite3, pathToTestDatabase);
   if (auto account = confu_soci::findStruct<database::Account> (sql, "accountName", loginAccountObject.accountName))
     {
-      if (std::find_if (users.begin (), users.end (), [accountId = account->id] (auto const &keyUser) { return accountId == std::get<1> (keyUser).accountId; }) != users.end ())
+      if (std::find_if (users.begin (), users.end (), [accountId = account->id] (auto const &u) { return accountId == u.accountId; }) != users.end ())
         {
           co_return objectToStringWithObjectName (shared_class::LoginAccountError{ .accountName = loginAccountObject.accountName, .error = "Account already logged in" });
         }
@@ -151,15 +159,15 @@ logoutAccount (User &user)
 }
 
 std::string
-broadCastMessage (std::string const &objectAsString, std::map<size_t, User> &users, User const &sendingUser)
+broadCastMessage (std::string const &objectAsString, std::list<User> &users, User const &sendingUser)
 {
   auto broadCastMessageObject = confu_boost::toObject<shared_class::BroadCastMessage> (objectAsString);
   if (sendingUser.accountId)
     {
-      for (auto &[key, user] : users | ranges::views::filter ([channel = broadCastMessageObject.channel, accountId = sendingUser.accountId] (auto const &keyUser) {
-                                 auto &user = std::get<1> (keyUser);
-                                 return user.communicationChannels.find (channel) != user.communicationChannels.end ();
-                               }))
+      for (auto &user : users | ranges::views::filter ([channel = broadCastMessageObject.channel, accountId = sendingUser.accountId] (auto const &user) {
+                          //
+                          return user.communicationChannels.find (channel) != user.communicationChannels.end ();
+                        }))
         {
           soci::session sql (soci::sqlite3, pathToTestDatabase);
           auto message = shared_class::Message{ .fromAccount = confu_soci::findStruct<database::Account> (sql, "id", sendingUser.accountId.value ()).value ().accountName, .channel = broadCastMessageObject.channel, .message = broadCastMessageObject.message };
@@ -186,4 +194,14 @@ leaveChannel (std::string const &objectAsString, User &user)
 {
   auto leaveChannelObject = confu_boost::toObject<shared_class::LeaveChannel> (objectAsString);
   user.communicationChannels.erase (leaveChannelObject.channel);
+}
+
+std::string
+createGameLobby (User &user)
+{
+}
+
+std::string
+joinGameLobby (User &user)
+{
 }

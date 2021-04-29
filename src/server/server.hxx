@@ -6,6 +6,7 @@
 #include <boost/asio.hpp>
 #include <boost/beast.hpp>
 #include <cstddef>
+#include <list>
 #include <queue>
 #include <string>
 class Server
@@ -18,15 +19,15 @@ public:
 private:
   boost::asio::awaitable<std::string> my_read (boost::beast::websocket::stream<boost::beast::tcp_stream> &ws_);
 
-  boost::asio::awaitable<void> readFromClient (size_t key);
+  boost::asio::awaitable<void> readFromClient (std::list<User>::iterator user);
 
-  boost::asio::awaitable<void> writeToClient (size_t key);
+  boost::asio::awaitable<void> writeToClient (std::list<User>::iterator user);
 
-  void removeUser (size_t userId, User &user);
+  void removeUser (std::list<User>::iterator user);
 
   boost::asio::io_context &_io_context;
   boost::asio::thread_pool &_pool;
-  std::map<size_t, User> users{};
+  std::list<User> users{};
 };
 
 #endif /* AD140436_3FBA_4D63_8C0E_9113B92859E0 */

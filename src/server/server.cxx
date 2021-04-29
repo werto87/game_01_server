@@ -50,43 +50,41 @@ Server::my_read (websocket::stream<tcp_stream> &ws_)
 }
 
 awaitable<void>
-Server::readFromClient (size_t key)
+Server::readFromClient (std::list<User>::iterator user)
 {
-  auto &user = users.at (key);
   try
     {
       for (;;)
         {
-          auto readResult = co_await my_read (user.websocket);
-          auto result = co_await handleMessage (readResult, _io_context, _pool, users, user);
-          user.msgQueue.insert (user.msgQueue.end (), make_move_iterator (result.begin ()), make_move_iterator (result.end ()));
+          auto readResult = co_await my_read (user->websocket);
+          auto result = co_await handleMessage (readResult, _io_context, _pool, users, *user);
+          user->msgQueue.insert (user->msgQueue.end (), make_move_iterator (result.begin ()), make_move_iterator (result.end ()));
         }
     }
   catch (std::exception &e)
     {
       std::cout << "echo  Exception: " << e.what () << std::endl;
-      removeUser (key, user);
+      removeUser (user);
     }
 }
 
 void
-Server::removeUser (size_t userId, User &user)
+Server::removeUser (std::list<User>::iterator user)
 {
   try
     {
-      user.websocket.close ("lost connection to user");
+      user->websocket.close ("lost connection to user");
     }
   catch (std::exception &e)
     {
       std::cout << "echo  Exception: " << e.what () << std::endl;
     }
-  users.erase (userId);
+  users.erase (user);
 }
 
 awaitable<void>
-Server::writeToClient (size_t key)
+Server::writeToClient (std::list<User>::iterator user)
 {
-  auto &user = users.at (key);
   try
     {
       for (;;)
@@ -95,19 +93,19 @@ Server::writeToClient (size_t key)
           using namespace std::chrono_literals;
           timer.expires_after (1s);
           co_await timer.async_wait (use_awaitable);
-          while (not user.msgQueue.empty ())
+          while (not user->msgQueue.empty ())
             {
-              auto tmpMsg = std::move (user.msgQueue.front ());
+              auto tmpMsg = std::move (user->msgQueue.front ());
               std::cout << "send msg: " << tmpMsg << std::endl;
-              user.msgQueue.pop_front ();
-              co_await user.websocket.async_write (buffer (tmpMsg), use_awaitable);
+              user->msgQueue.pop_front ();
+              co_await user->websocket.async_write (buffer (tmpMsg), use_awaitable);
             }
         }
     }
   catch (std::exception &e)
     {
       std::cout << "echo  Exception: " << e.what () << std::endl;
-      removeUser (key, user);
+      removeUser (user);
     }
 }
 
@@ -119,15 +117,14 @@ Server::listener ()
   for (;;)
     {
       ip::tcp::socket socket = co_await acceptor.async_accept (use_awaitable);
-      auto key = size_t{};
-      randombytes_buf (&key, sizeof (key));
-      users.emplace (key, User{ {}, boost::beast::websocket::stream<boost::beast::tcp_stream>{ std::move (socket) }, {}, { "default" } });
-      users.at (key).websocket.set_option (websocket::stream_base::timeout::suggested (role_type::server));
-      users.at (key).websocket.set_option (websocket::stream_base::decorator ([] (websocket::response_type &res) { res.set (http::field::server, std::string (BOOST_BEAST_VERSION_STRING) + " websocket-server-async"); }));
-      co_await users.at (key).websocket.async_accept (use_awaitable);
+      users.emplace_back (User{ {}, boost::beast::websocket::stream<boost::beast::tcp_stream>{ std::move (socket) }, {}, { "default" } });
+      std::list<User>::iterator user = std::next (users.end (), -1);
+      user->websocket.set_option (websocket::stream_base::timeout::suggested (role_type::server));
+      user->websocket.set_option (websocket::stream_base::decorator ([] (websocket::response_type &res) { res.set (http::field::server, std::string (BOOST_BEAST_VERSION_STRING) + " websocket-server-async"); }));
+      co_await user->websocket.async_accept (use_awaitable);
       co_spawn (
-          executor, [this, key] () mutable { return readFromClient (key); }, detached);
+          executor, [&] () mutable { return readFromClient (user); }, detached);
       co_spawn (
-          executor, [this, key] () mutable { return writeToClient (key); }, detached);
+          executor, [&] () mutable { return writeToClient (user); }, detached);
     }
 }

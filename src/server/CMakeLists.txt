@@ -3,4 +3,5 @@
  "server.cxx"
  "user.hxx"
  "user.cxx"
+ "gameLobby.hxx"
  )
