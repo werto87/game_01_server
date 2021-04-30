@@ -8,15 +8,15 @@
 #include <string>
 #include <vector>
 
-boost::asio::awaitable<std::vector<std::string> > handleMessage (std::string const &msg, boost::asio::io_context &io_context, boost::asio::thread_pool &pool, std::list<User> &users, User &user);
+boost::asio::awaitable<std::vector<std::string> > handleMessage (std::string const &msg, boost::asio::io_context &io_context, boost::asio::thread_pool &pool, std::list<std::shared_ptr<User> > &users, User &user);
 
 boost::asio::awaitable<std::string> createAccount (std::string objectAsString, boost::asio::io_context &io_context, boost::asio::thread_pool &pool);
 
-boost::asio::awaitable<std::string> loginAccount (std::string objectAsString, boost::asio::io_context &io_context, std::list<User> &users, User &user, boost::asio::thread_pool &pool);
+boost::asio::awaitable<std::string> loginAccount (std::string objectAsString, boost::asio::io_context &io_context, std::list<std::shared_ptr<User> > &users, User &user, boost::asio::thread_pool &pool);
 
 std::string logoutAccount (User &user);
 
-std::string broadCastMessage (std::string const &objectAsString, std::list<User> &users, User const &sendingUser);
+std::string broadCastMessage (std::string const &objectAsString, std::list<std::shared_ptr<User> > &users, User const &sendingUser);
 
 std::string joinChannel (std::string const &objectAsString, User &user);
 

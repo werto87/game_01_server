@@ -50,15 +50,25 @@ Server::my_read (websocket::stream<tcp_stream> &ws_)
 }
 
 awaitable<void>
-Server::readFromClient (std::list<User>::iterator user)
+Server::readFromClient (std::list<std::shared_ptr<User> >::iterator user)
 {
   try
     {
       for (;;)
         {
-          auto readResult = co_await my_read (user->websocket);
-          auto result = co_await handleMessage (readResult, _io_context, _pool, users, *user);
-          user->msgQueue.insert (user->msgQueue.end (), make_move_iterator (result.begin ()), make_move_iterator (result.end ()));
+          // workaround for internal compiler error with shared pointer and co_await
+          // BEGIN---------------------------------------------------------------------
+          auto tempUser = user->get ();
+          auto readResult = co_await my_read (tempUser->websocket);
+          auto result = co_await handleMessage (readResult, _io_context, _pool, users, *tempUser);
+          tempUser->msgQueue.insert (tempUser->msgQueue.end (), make_move_iterator (result.begin ()), make_move_iterator (result.end ()));
+          // END-----------------------------------------------------------------------
+          // comment this in when compiler error got fixed
+          // BEGIN---------------------------------------------------------------------
+          // auto readResult = co_await my_read (user->get ()->websocket);
+          // auto result = co_await handleMessage (readResult, _io_context, _pool, users, *user->get ());
+          // user->get ()->msgQueue.insert (user->get ()->msgQueue.end (), make_move_iterator (result.begin ()), make_move_iterator (result.end ()));
+          // END-----------------------------------------------------------------------
         }
     }
   catch (std::exception &e)
@@ -69,11 +79,11 @@ Server::readFromClient (std::list<User>::iterator user)
 }
 
 void
-Server::removeUser (std::list<User>::iterator user)
+Server::removeUser (std::list<std::shared_ptr<User> >::iterator user)
 {
   try
     {
-      user->websocket.close ("lost connection to user");
+      user->get ()->websocket.close ("lost connection to user");
     }
   catch (std::exception &e)
     {
@@ -83,7 +93,7 @@ Server::removeUser (std::list<User>::iterator user)
 }
 
 awaitable<void>
-Server::writeToClient (std::list<User>::iterator user)
+Server::writeToClient (std::list<std::shared_ptr<User> >::iterator user)
 {
   try
     {
@@ -93,12 +103,20 @@ Server::writeToClient (std::list<User>::iterator user)
           using namespace std::chrono_literals;
           timer.expires_after (1s);
           co_await timer.async_wait (use_awaitable);
-          while (not user->msgQueue.empty ())
+          while (not user->get ()->msgQueue.empty ())
             {
-              auto tmpMsg = std::move (user->msgQueue.front ());
+              auto tmpMsg = std::move (user->get ()->msgQueue.front ());
               std::cout << "send msg: " << tmpMsg << std::endl;
-              user->msgQueue.pop_front ();
-              co_await user->websocket.async_write (buffer (tmpMsg), use_awaitable);
+              user->get ()->msgQueue.pop_front ();
+              // workaround for internal compiler error with shared pointer and co_await
+              // BEGIN---------------------------------------------------------------------
+              auto tempUser = user->get ();
+              co_await tempUser->websocket.async_write (buffer (tmpMsg), use_awaitable);
+              // END-----------------------------------------------------------------------
+              // comment this in when compiler error got fixed
+              // BEGIN---------------------------------------------------------------------
+              // co_await user->get ()->websocket.async_write (buffer (tmpMsg), use_awaitable);
+              // END-----------------------------------------------------------------------
             }
         }
     }
@@ -117,11 +135,19 @@ Server::listener ()
   for (;;)
     {
       ip::tcp::socket socket = co_await acceptor.async_accept (use_awaitable);
-      users.emplace_back (User{ {}, boost::beast::websocket::stream<boost::beast::tcp_stream>{ std::move (socket) }, {}, { "default" } });
-      std::list<User>::iterator user = std::next (users.end (), -1);
-      user->websocket.set_option (websocket::stream_base::timeout::suggested (role_type::server));
-      user->websocket.set_option (websocket::stream_base::decorator ([] (websocket::response_type &res) { res.set (http::field::server, std::string (BOOST_BEAST_VERSION_STRING) + " websocket-server-async"); }));
-      co_await user->websocket.async_accept (use_awaitable);
+      users.emplace_back (std::make_shared<User> (User{ {}, boost::beast::websocket::stream<boost::beast::tcp_stream>{ std::move (socket) }, {}, { "default" } }));
+      std::list<std::shared_ptr<User> >::iterator user = std::next (users.end (), -1);
+      user->get ()->websocket.set_option (websocket::stream_base::timeout::suggested (role_type::server));
+      user->get ()->websocket.set_option (websocket::stream_base::decorator ([] (websocket::response_type &res) { res.set (http::field::server, std::string (BOOST_BEAST_VERSION_STRING) + " websocket-server-async"); }));
+      // workaround for internal compiler error with shared pointer and co_await
+      // BEGIN---------------------------------------------------------------------
+      auto tempUser = user->get ();
+      co_await tempUser->websocket.async_accept (use_awaitable);
+      // END-----------------------------------------------------------------------
+      // comment this in when compiler error got fixed
+      // BEGIN---------------------------------------------------------------------
+      // co_await user->get ()->websocket.async_accept (use_awaitable);
+      // END-----------------------------------------------------------------------
       co_spawn (
           executor, [&] () mutable { return readFromClient (user); }, detached);
       co_spawn (
