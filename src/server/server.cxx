@@ -60,7 +60,7 @@ Server::readFromClient (std::list<std::shared_ptr<User> >::iterator user)
           // BEGIN---------------------------------------------------------------------
           auto tempUser = user->get ();
           auto readResult = co_await my_read (tempUser->websocket);
-          auto result = co_await handleMessage (readResult, _io_context, _pool, users, *tempUser);
+          auto result = co_await handleMessage (readResult, _io_context, _pool, users, *user, gameLobbys);
           tempUser->msgQueue.insert (tempUser->msgQueue.end (), make_move_iterator (result.begin ()), make_move_iterator (result.end ()));
           // END-----------------------------------------------------------------------
           // comment this in when compiler error got fixed
@@ -93,7 +93,7 @@ Server::removeUser (std::list<std::shared_ptr<User> >::iterator user)
 }
 
 awaitable<void>
-Server::writeToClient (std::list<std::shared_ptr<User> >::iterator user)
+Server::writeToClient (std::shared_ptr<User> user)
 {
   try
     {
@@ -103,27 +103,18 @@ Server::writeToClient (std::list<std::shared_ptr<User> >::iterator user)
           using namespace std::chrono_literals;
           timer.expires_after (1s);
           co_await timer.async_wait (use_awaitable);
-          while (not user->get ()->msgQueue.empty ())
+          while (not user->msgQueue.empty ())
             {
-              auto tmpMsg = std::move (user->get ()->msgQueue.front ());
+              auto tmpMsg = std::move (user->msgQueue.front ());
               std::cout << "send msg: " << tmpMsg << std::endl;
-              user->get ()->msgQueue.pop_front ();
-              // workaround for internal compiler error with shared pointer and co_await
-              // BEGIN---------------------------------------------------------------------
-              auto tempUser = user->get ();
-              co_await tempUser->websocket.async_write (buffer (tmpMsg), use_awaitable);
-              // END-----------------------------------------------------------------------
-              // comment this in when compiler error got fixed
-              // BEGIN---------------------------------------------------------------------
-              // co_await user->get ()->websocket.async_write (buffer (tmpMsg), use_awaitable);
-              // END-----------------------------------------------------------------------
+              user->msgQueue.pop_front ();
+              co_await user->websocket.async_write (buffer (tmpMsg), use_awaitable);
             }
         }
     }
   catch (std::exception &e)
     {
       std::cout << "echo  Exception: " << e.what () << std::endl;
-      removeUser (user);
     }
 }
 
@@ -151,6 +142,6 @@ Server::listener ()
       co_spawn (
           executor, [&] () mutable { return readFromClient (user); }, detached);
       co_spawn (
-          executor, [&] () mutable { return writeToClient (user); }, detached);
+          executor, [&] () mutable { return writeToClient (*user); }, detached);
     }
 }

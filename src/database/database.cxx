@@ -22,25 +22,14 @@ void
 createTables ()
 {
   soci::session sql (soci::sqlite3, pathToTestDatabase);
-  confu_soci::createTableForStruct<Character> (sql, { { "accountId", "Account", "id" } });
   confu_soci::createTableForStruct<Account> (sql);
-  confu_soci::createTableForStruct<BoardElement> (sql, { { "boardId", "Board", "id" } });
-  confu_soci::createTableForStruct<Board> (sql, { { "gameId", "Game", "id" } });
-  confu_soci::createTableForStruct<Game> (sql);
 }
 
 boost::optional<Account>
 createAccount (std::string const &accountName, std::string const &password)
 {
   soci::session sql (soci::sqlite3, pathToTestDatabase);
-  return confu_soci::findStruct<Account> (sql, "id", confu_soci::insertStruct (sql, Account{ .id = {}, .accountName = accountName, .password = password }, true, true));
+  return confu_soci::findStruct<Account> (sql, "accountName", confu_soci::insertStruct (sql, Account{ .accountName = accountName, .password = password }, true));
 }
 
-boost::optional<database::Character>
-createCharacter (std::string const &accoundId)
-{
-  soci::session sql (soci::sqlite3, pathToTestDatabase);
-  return confu_soci::findStruct<Character> (sql, "id", confu_soci::insertStruct (sql, Character{ .id = {}, .positionX = {}, .positionY = {}, .positionZ = {}, .accountId = accoundId }, true, true));
-}
-
-} // namespace database 
+} // namespace database

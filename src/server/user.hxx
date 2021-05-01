@@ -11,13 +11,13 @@
 struct User
 {
   User () = default;
-  User (boost::optional<std::string> _accountId, boost::beast::websocket::stream<boost::beast::tcp_stream> &&_websocket, std::deque<std::string> _msgQueue, std::set<std::string> _communicationChannels) : accountId{ std::move (_accountId) }, websocket{ std::move (_websocket) }, msgQueue{ std::move (_msgQueue) }, communicationChannels{ std::move (_communicationChannels) } {};
-  User (const User &) = delete;
-  const User &operator= (const User &) = delete;
+  User (boost::optional<std::string> _accountName, boost::beast::websocket::stream<boost::beast::tcp_stream> &&_websocket, std::deque<std::string> _msgQueue, std::set<std::string> _communicationChannels) : accountName{ std::move (_accountName) }, websocket{ std::move (_websocket) }, msgQueue{ std::move (_msgQueue) }, communicationChannels{ std::move (_communicationChannels) } {};
+  User (User const &) = delete;
+  User &operator= (User const &) = delete;
   User (User &&) = default;
   User &operator= (User &&) = delete;
 
-  boost::optional<std::string> accountId{}; // has value if user is logged in
+  boost::optional<std::string> accountName{}; // has value if user is logged in
   boost::beast::websocket::stream<boost::beast::tcp_stream> websocket;
   std::deque<std::string> msgQueue{};
   std::set<std::string> communicationChannels{};

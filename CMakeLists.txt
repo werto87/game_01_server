@@ -62,10 +62,11 @@ CONAN_PKG::libsodium
 CONAN_PKG::durak
 CONAN_PKG::range-v3
 CONAN_PKG::game_01_shared_class
+CONAN_PKG::pipes
 )
 
 ####### create executable
-OPTION(BUILD_TESTS "enable tests" ON)
+OPTION(BUILD_TESTS "enable tests" OFF)
 IF(BUILD_TESTS)
     enable_testing()
     add_subdirectory(test) 

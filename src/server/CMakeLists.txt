@@ -4,4 +4,5 @@
  "user.hxx"
  "user.cxx"
  "gameLobby.hxx"
+ "gameLobby.cxx"
  )

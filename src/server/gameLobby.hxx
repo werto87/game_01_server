@@ -1,15 +1,34 @@
 #ifndef DBE82937_D6AB_4777_A3C8_A62B68300AA3
 #define DBE82937_D6AB_4777_A3C8_A62B68300AA3
 
+#include "src/server/user.hxx"
+#include <cstddef>
+#include <list>
+#include <memory>
 #include <optional>
+#include <stdexcept>
 #include <string>
 struct GameLobby
 {
+  GameLobby (std::string name, std::string password) : _name{ std::move (name) }, _password (std::move (password)) {}
 
-  std::string name{};
-  std::optional<std::string> password{};
+  std::string const &gameLobbyName () const;
+  std::string const &gameLobbyPassword () const;
+  bool hasPassword () const;
+  size_t maxUserCount () const;
+  std::optional<std::string> setMaxUserCount (size_t userMaxCount);
 
-  // vector auf server vector<GameLobby>{}
+  std::vector<std::string> accountNames () const;
+  std::string gameLobbyAdminAccountName () const;
+  bool tryToAddUser (std::shared_ptr<User> const &user);
+  bool tryToRemoveUser (std::string const &userWhoTriesToRemove, std::string const &userToRemoveName);
+  bool tryToRemoveAdminAndSetNewAdmin ();
+
+private:
+  std::string _name{};
+  std::string _password{};                      // empty string means no password
+  std::vector<std::shared_ptr<User> > _users{}; // user at.(0) has admin rights on this GameLobby
+  size_t _maxUserCount{ 1 };                    // should be atleast 1
 };
 
 #endif /* DBE82937_D6AB_4777_A3C8_A62B68300AA3 */

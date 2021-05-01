@@ -7,17 +7,10 @@
 #include <boost/optional.hpp>
 #include <filesystem>
 
-BOOST_FUSION_DEFINE_STRUCT ((database), Character, (std::string, id) (long, positionX) (long, positionY) (long, positionZ) (std::string, accountId))
-BOOST_FUSION_DEFINE_STRUCT ((database), Account, (std::string, id) (std::string, accountName) (std::string, password))
-BOOST_FUSION_DEFINE_STRUCT ((database), BoardElement, (std::string, id) (std::string, boardId))
-BOOST_FUSION_DEFINE_STRUCT ((database), Board, (std::string, id) (std::string, gameId))
-BOOST_FUSION_DEFINE_STRUCT ((database), Game, (std::string, id))
+// TODO right now we make sure account name is unique. why do we need account id if account name is already unique?
+// TODO remove id and fix logic
 
-BOOST_SERIALIZATION_BOILER_PLATE (database::Character)
-BOOST_SERIALIZATION_BOILER_PLATE (database::Account)
-BOOST_SERIALIZATION_BOILER_PLATE (database::BoardElement)
-BOOST_SERIALIZATION_BOILER_PLATE (database::Board)
-BOOST_SERIALIZATION_BOILER_PLATE (database::Game)
+BOOST_FUSION_DEFINE_STRUCT ((database), Account, (std::string, accountName) (std::string, password))
 
 namespace database
 {
@@ -25,7 +18,6 @@ void createEmptyDatabase ();
 void createTables ();
 
 boost::optional<database::Account> createAccount (std::string const &accountName, std::string const &password);
-boost::optional<database::Character> createCharacter (std::string const &accoundId);
 }
 
 #endif /* B86FE02F_B7D0_4435_9031_A334C305B294 */
