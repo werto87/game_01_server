@@ -26,9 +26,9 @@ struct GameLobby
 
 private:
   std::string _name{};
-  std::string _password{};                      // empty string means no password
-  std::vector<std::shared_ptr<User> > _users{}; // user at.(0) has admin rights on this GameLobby
-  size_t _maxUserCount{ 1 };                    // should be atleast 1
+  std::string _password{};
+  std::vector<std::shared_ptr<User> > _users{};
+  size_t _maxUserCount{ 1 };
 };
 
 #endif /* DBE82937_D6AB_4777_A3C8_A62B68300AA3 */
