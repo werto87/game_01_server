@@ -257,7 +257,6 @@ leaveChannel (std::string const &objectAsString, User &user)
 std::string
 createGameLobby (std::string const &objectAsString, std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys)
 {
-  // TODO implement relog if user is in a game lobby and loggs in. it should be possible to get back to the game lobby or if he wants to discard it.
   auto createGameLobbyObject = confu_boost::toObject<shared_class::CreateGameLobby> (objectAsString);
   if (auto gameLobbyWithUser = std::ranges::find_if (gameLobbys,
                                                      [accountName = user->accountName] (auto const &gameLobby) {
