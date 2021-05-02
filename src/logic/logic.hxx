@@ -13,7 +13,7 @@ boost::asio::awaitable<std::vector<std::string> > handleMessage (std::string con
 
 boost::asio::awaitable<std::string> createAccount (std::string objectAsString, boost::asio::io_context &io_context, boost::asio::thread_pool &pool);
 
-boost::asio::awaitable<std::string> loginAccount (std::string objectAsString, boost::asio::io_context &io_context, std::list<std::shared_ptr<User> > &users, User &user, boost::asio::thread_pool &pool);
+boost::asio::awaitable<std::string> loginAccount (std::string objectAsString, boost::asio::io_context &io_context, std::list<std::shared_ptr<User> > &users, std::shared_ptr<User> user, boost::asio::thread_pool &pool, std::list<GameLobby> &gameLobbys);
 
 std::string logoutAccount (User &user);
 
@@ -21,11 +21,17 @@ std::string broadCastMessage (std::string const &objectAsString, std::list<std::
 
 std::string joinChannel (std::string const &objectAsString, User &user);
 
-void leaveChannel (std::string const &objectAsString, User &user);
+std::string leaveChannel (std::string const &objectAsString, User &user);
 
 std::string createGameLobby (std::string const &objectAsString, std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys);
 
 std::optional<std::string> joinGameLobby (std::string const &objectAsString, std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys);
+
+std::optional<std::string> setMaxUserSizeInCreateGameLobby (std::string const &objectAsString, std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys);
+
+std::optional<std::string> leaveGameLobby (std::string const &objectAsString, std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys);
+
+std::optional<std::string> relogTo (std::string const &objectAsString, std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys);
 
 template <typename TypeToSend>
 std::string

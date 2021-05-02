@@ -7,9 +7,6 @@
 #include <boost/optional.hpp>
 #include <filesystem>
 
-// TODO right now we make sure account name is unique. why do we need account id if account name is already unique?
-// TODO remove id and fix logic
-
 BOOST_FUSION_DEFINE_STRUCT ((database), Account, (std::string, accountName) (std::string, password))
 
 namespace database

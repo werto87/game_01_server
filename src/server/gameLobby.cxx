@@ -1,6 +1,7 @@
 #include "src/server/gameLobby.hxx"
 #include <algorithm>
 #include <iterator>
+#include <stdexcept>
 std::optional<std::string>
 GameLobby::setMaxUserCount (size_t userMaxCount)
 {
@@ -100,4 +101,35 @@ bool
 GameLobby::hasPassword () const
 {
   return not _password.empty ();
+}
+
+void
+GameLobby::sendToAllAccountsInGameLobby (std::string const &message)
+{
+  std::ranges::for_each (_users, [&message] (auto &user) { user->msgQueue.push_back (message); });
+}
+
+bool
+GameLobby::removeUser (std::shared_ptr<User> const &user)
+{
+  return _users.erase (std::remove_if (_users.begin (), _users.end (), [accountName = user->accountName.value ()] (auto const &_user) { return accountName == _user->accountName.value (); }), _users.end ()) != _users.end ();
+}
+
+size_t
+GameLobby::accountCount ()
+{
+  return _users.size ();
+}
+
+void
+GameLobby::relogUser (std::shared_ptr<User> &user)
+{
+  if (auto oldLogin = std::ranges::find_if (_users, [accountName = user->accountName.value ()] (auto const &_user) { return accountName == _user->accountName.value (); }); oldLogin != _users.end ())
+    {
+      *oldLogin = user;
+    }
+  else
+    {
+      throw std::logic_error{ "can not relog user beacuse he is not logged in the create game lobby" };
+    }
 }

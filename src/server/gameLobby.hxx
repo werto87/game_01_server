@@ -22,7 +22,11 @@ struct GameLobby
   std::string gameLobbyAdminAccountName () const;
   bool tryToAddUser (std::shared_ptr<User> const &user);
   bool tryToRemoveUser (std::string const &userWhoTriesToRemove, std::string const &userToRemoveName);
+  bool removeUser (std::shared_ptr<User> const &user);
   bool tryToRemoveAdminAndSetNewAdmin ();
+  void sendToAllAccountsInGameLobby (std::string const &message);
+  size_t accountCount ();
+  void relogUser (std::shared_ptr<User> &user);
 
 private:
   std::string _name{};
