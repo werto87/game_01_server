@@ -101,7 +101,7 @@ Server::writeToClient (std::shared_ptr<User> user)
         {
           auto timer = steady_timer (co_await this_coro::executor);
           using namespace std::chrono_literals;
-          timer.expires_after (1s);
+          timer.expires_after (100ms);
           co_await timer.async_wait (use_awaitable);
           while (not user->msgQueue.empty ())
             {
