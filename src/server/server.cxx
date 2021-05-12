@@ -58,6 +58,10 @@ Server::readFromClient (std::list<std::shared_ptr<User>>::iterator user)
         {
           // workaround for internal compiler error with shared pointer and co_await
           // BEGIN---------------------------------------------------------------------
+          auto timer = steady_timer (co_await this_coro::executor);
+          using namespace std::chrono_literals;
+          timer.expires_after (10s);
+          co_await timer.async_wait (use_awaitable);
           auto tempUser = user->get ();
           auto readResult = co_await my_read (tempUser->websocket);
           auto result = co_await handleMessage (readResult, _io_context, _pool, users, *user, gameLobbys);

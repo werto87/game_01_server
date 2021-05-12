@@ -40,4 +40,7 @@ objectToStringWithObjectName (TypeToSend const &typeToSend)
   return confu_soci::typeNameWithOutNamespace (typeToSend) + '|' + confu_boost::toString (typeToSend);
 }
 
+void loginAccountCancel (std::shared_ptr<User> user);
+void createAccountCancel (std::shared_ptr<User> user);
+
 #endif /* E18680A5_3B06_4019_A849_6CDB82D14796 */

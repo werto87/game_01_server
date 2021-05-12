@@ -62,10 +62,14 @@ handleMessage (std::string const &msg, boost::asio::io_context &io_context, boos
       if (typeToSearch == "CreateAccount")
         {
           result.push_back (co_await createAccountAndLogin (objectAsString, io_context, user, pool));
+          user->ignoreCreateAccount = false;
+          user->ignoreLogin = false;
         }
       else if (typeToSearch == "LoginAccount")
         {
           result.push_back (co_await loginAccount (objectAsString, io_context, users, user, pool, gameLobbys));
+          user->ignoreCreateAccount = false;
+          user->ignoreLogin = false;
         }
       else if (typeToSearch == "BroadCastMessage")
         {
@@ -118,6 +122,14 @@ handleMessage (std::string const &msg, boost::asio::io_context &io_context, boos
               result.push_back (relogToResult.value ());
             }
         }
+      else if (typeToSearch == "LoginAccountCancel")
+        {
+          loginAccountCancel (user);
+        }
+      else if (typeToSearch == "CreateAccountCancel")
+        {
+          createAccountCancel (user);
+        }
       else
         {
           std::cout << "could not find a match for typeToSearch '" << typeToSearch << "'" << std::endl;
@@ -139,14 +151,21 @@ createAccountAndLogin (std::string objectAsString, boost::asio::io_context &io_c
   else
     {
       auto hashedPw = co_await async_hash (pool, io_context, createAccountObject.password, boost::asio::use_awaitable);
-      if (auto account = database::createAccount (createAccountObject.accountName, hashedPw))
+      if (user->ignoreCreateAccount)
         {
-          user->accountName = account->accountName;
-          co_return objectToStringWithObjectName (shared_class::LoginAccountSuccess{ .accountName = createAccountObject.accountName });
+          co_return objectToStringWithObjectName (shared_class::CreateAccountError{ .accountName = createAccountObject.accountName, .error = "Canceled by User Request" });
         }
       else
         {
-          co_return objectToStringWithObjectName (shared_class::CreateAccountError{ .accountName = createAccountObject.accountName, .error = "account already created" });
+          if (auto account = database::createAccount (createAccountObject.accountName, hashedPw))
+            {
+              user->accountName = account->accountName;
+              co_return objectToStringWithObjectName (shared_class::LoginAccountSuccess{ .accountName = createAccountObject.accountName });
+            }
+          else
+            {
+              co_return objectToStringWithObjectName (shared_class::CreateAccountError{ .accountName = createAccountObject.accountName, .error = "account already created" });
+            }
         }
     }
 }
@@ -155,41 +174,67 @@ boost::asio::awaitable<std::string>
 loginAccount (std::string objectAsString, boost::asio::io_context &io_context, std::list<std::shared_ptr<User>> &users, std::shared_ptr<User> user, boost::asio::thread_pool &pool, std::list<GameLobby> &gameLobbys)
 {
   auto loginAccountObject = confu_boost::toObject<shared_class::LoginAccount> (objectAsString);
-  soci::session sql (soci::sqlite3, pathToTestDatabase);
-  if (auto account = confu_soci::findStruct<database::Account> (sql, "accountName", loginAccountObject.accountName))
+  if (not user->accountName)
     {
-      if (std::find_if (users.begin (), users.end (), [accountName = account->accountName] (auto const &u) { return accountName == u->accountName; }) != users.end ())
+      soci::session sql (soci::sqlite3, pathToTestDatabase);
+      if (auto account = confu_soci::findStruct<database::Account> (sql, "accountName", loginAccountObject.accountName))
         {
-          co_return objectToStringWithObjectName (shared_class::LoginAccountError{ .accountName = loginAccountObject.accountName, .error = "Account already logged in" });
-        }
-      else
-        {
-          if (co_await async_check_hashed_pw (pool, io_context, account->password, loginAccountObject.password, boost::asio::use_awaitable))
+          if (std::find_if (users.begin (), users.end (), [accountName = account->accountName] (auto const &u) { return accountName == u->accountName; }) != users.end ())
             {
-              user->accountName = account->accountName;
-              if (auto gameLobbyWithUser = std::ranges::find_if (gameLobbys,
-                                                                 [accountName = user->accountName] (auto const &gameLobby) {
-                                                                   auto const &accountNames = gameLobby.accountNames ();
-                                                                   return std::ranges::find_if (accountNames, [&accountName] (auto const &nameToCheck) { return nameToCheck == accountName; }) != accountNames.end ();
-                                                                 });
-                  gameLobbyWithUser != gameLobbys.end ())
-                {
-                  co_return objectToStringWithObjectName (shared_class::WantToRelog{ .accountName = loginAccountObject.accountName, .destination = "create game lobby" });
-                }
-              else
-                {
-                  co_return objectToStringWithObjectName (shared_class::LoginAccountSuccess{ .accountName = loginAccountObject.accountName });
-                }
+              co_return objectToStringWithObjectName (shared_class::LoginAccountError{ .accountName = loginAccountObject.accountName, .error = "Account already logged in" });
             }
           else
             {
-              co_return objectToStringWithObjectName (shared_class::LoginAccountError{ .accountName = loginAccountObject.accountName, .error = "Incorrect username or password" });
+              if (co_await async_check_hashed_pw (pool, io_context, account->password, loginAccountObject.password, boost::asio::use_awaitable))
+                {
+                  if (user->ignoreLogin)
+                    {
+                      co_return objectToStringWithObjectName (shared_class::LoginAccountError{ .accountName = loginAccountObject.accountName, .error = "Canceled by User Request" });
+                    }
+                  else
+                    {
+                      user->accountName = account->accountName;
+                      if (auto gameLobbyWithUser = std::ranges::find_if (gameLobbys,
+                                                                         [accountName = user->accountName] (auto const &gameLobby) {
+                                                                           auto const &accountNames = gameLobby.accountNames ();
+                                                                           return std::ranges::find_if (accountNames, [&accountName] (auto const &nameToCheck) { return nameToCheck == accountName; }) != accountNames.end ();
+                                                                         });
+                          gameLobbyWithUser != gameLobbys.end ())
+                        {
+                          co_return objectToStringWithObjectName (shared_class::WantToRelog{ .accountName = loginAccountObject.accountName, .destination = "Create Game Lobby" });
+                        }
+                      else
+                        {
+                          co_return objectToStringWithObjectName (shared_class::LoginAccountSuccess{ .accountName = loginAccountObject.accountName });
+                        }
+                    }
+                }
+              else
+                {
+                  co_return objectToStringWithObjectName (shared_class::LoginAccountError{ .accountName = loginAccountObject.accountName, .error = "Incorrect Username or Password" });
+                }
             }
+        }
+      else
+        {
+          co_return objectToStringWithObjectName (shared_class::LoginAccountError{ .accountName = loginAccountObject.accountName, .error = "Incorrect username or password" });
         }
     }
   else
     {
-      co_return objectToStringWithObjectName (shared_class::LoginAccountError{ .accountName = loginAccountObject.accountName, .error = "Incorrect username or password" });
+      if (auto gameLobbyWithUser = std::ranges::find_if (gameLobbys,
+                                                         [accountName = user->accountName] (auto const &gameLobby) {
+                                                           auto const &accountNames = gameLobby.accountNames ();
+                                                           return std::ranges::find_if (accountNames, [&accountName] (auto const &nameToCheck) { return nameToCheck == accountName; }) != accountNames.end ();
+                                                         });
+          gameLobbyWithUser != gameLobbys.end ())
+        {
+          co_return objectToStringWithObjectName (shared_class::WantToRelog{ .accountName = loginAccountObject.accountName, .destination = "Create Game Lobby" });
+        }
+      else
+        {
+          co_return objectToStringWithObjectName (shared_class::LoginAccountSuccess{ .accountName = loginAccountObject.accountName });
+        }
     }
 }
 
@@ -199,6 +244,8 @@ logoutAccount (User &user)
   user.accountName = {};
   user.msgQueue.clear ();
   user.communicationChannels.clear ();
+  user.ignoreLogin = false;
+  user.ignoreCreateAccount = false;
   return objectToStringWithObjectName (shared_class::LogoutAccountSuccess{});
 }
 
@@ -431,4 +478,22 @@ relogTo (std::string const &objectAsString, std::shared_ptr<User> user, std::lis
       return objectToStringWithObjectName (shared_class::RelogToError{ .error = "trying to reconnect into game lobby but game lobby does not exist anymore" });
     }
   return {};
+}
+
+void
+loginAccountCancel (std::shared_ptr<User> user)
+{
+  if (not user->accountName)
+    {
+      user->ignoreLogin = true;
+    }
+}
+
+void
+createAccountCancel (std::shared_ptr<User> user)
+{
+  if (not user->accountName)
+    {
+      user->ignoreCreateAccount = true;
+    }
 }

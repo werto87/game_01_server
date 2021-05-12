@@ -21,6 +21,8 @@ struct User
   boost::beast::websocket::stream<boost::beast::tcp_stream> websocket;
   std::deque<std::string> msgQueue{};
   std::set<std::string> communicationChannels{};
+  bool ignoreLogin{};
+  bool ignoreCreateAccount{};
 };
 
 #endif /* F85705C8_6F01_4F50_98CA_5636F5F5E1C1 */
