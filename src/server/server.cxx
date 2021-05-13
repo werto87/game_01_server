@@ -58,10 +58,10 @@ Server::readFromClient (std::list<std::shared_ptr<User>>::iterator user)
         {
           // workaround for internal compiler error with shared pointer and co_await
           // BEGIN---------------------------------------------------------------------
-          auto timer = steady_timer (co_await this_coro::executor);
-          using namespace std::chrono_literals;
-          timer.expires_after (10s);
-          co_await timer.async_wait (use_awaitable);
+          // auto timer = steady_timer (co_await this_coro::executor);
+          // using namespace std::chrono_literals;
+          // timer.expires_after (10s);
+          // co_await timer.async_wait (use_awaitable);
           auto tempUser = user->get ();
           auto readResult = co_await my_read (tempUser->websocket);
           auto result = co_await handleMessage (readResult, _io_context, _pool, users, *user, gameLobbys);
@@ -93,6 +93,11 @@ Server::removeUser (std::list<std::shared_ptr<User>>::iterator user)
     {
       std::cout << "echo  Exception: " << e.what () << std::endl;
     }
+  // user will still be in create game lobby so we reset everything expect user->accountName
+  user->get ()->communicationChannels.clear ();
+  user->get ()->ignoreLogin = false;
+  user->get ()->ignoreCreateAccount = false;
+  user->get ()->msgQueue.clear ();
   users.erase (user);
 }
 
@@ -105,7 +110,7 @@ Server::writeToClient (std::shared_ptr<User> user)
         {
           auto timer = steady_timer (co_await this_coro::executor);
           using namespace std::chrono_literals;
-          timer.expires_after (100ms);
+          timer.expires_after (10ms);
           co_await timer.async_wait (use_awaitable);
           while (not user->msgQueue.empty ())
             {
