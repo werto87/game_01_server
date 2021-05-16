@@ -608,7 +608,7 @@ durakDefend (std::string const &objectAsString, std::shared_ptr<User> user, std:
         }
       else
         {
-          user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendError{ .error = "Error while defending " + fmt::format ("CardToBeat{},{} vs. Card{},{}", durakDefendObject.cardToBeat.value, magic_enum::enum_name (durakDefendObject.card.type), durakDefendObject.cardToBeat.value, magic_enum::enum_name (durakDefendObject.card.type)) }));
+          user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendError{ .error = "Error while defending " + fmt::format ("CardToBeat: {},{} vs. Card: {},{}", durakDefendObject.cardToBeat.value, magic_enum::enum_name (durakDefendObject.card.type), durakDefendObject.card.value, magic_enum::enum_name (durakDefendObject.card.type)) }));
         }
     }
   else
