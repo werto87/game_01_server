@@ -64,7 +64,7 @@ Server::readFromClient (std::list<std::shared_ptr<User>>::iterator user)
           // co_await timer.async_wait (use_awaitable);
           auto tempUser = user->get ();
           auto readResult = co_await my_read (tempUser->websocket);
-          auto result = co_await handleMessage (readResult, _io_context, _pool, users, *user, gameLobbys);
+          auto result = co_await handleMessage (readResult, _io_context, _pool, users, *user, gameLobbys, games);
           tempUser->msgQueue.insert (tempUser->msgQueue.end (), make_move_iterator (result.begin ()), make_move_iterator (result.end ()));
           // END-----------------------------------------------------------------------
           // comment this in when compiler error got fixed
@@ -93,7 +93,7 @@ Server::removeUser (std::list<std::shared_ptr<User>>::iterator user)
     {
       std::cout << "echo  Exception: " << e.what () << std::endl;
     }
-  // user will still be in create game lobby so we reset everything expect user->accountName
+  // user will still be in create game lobby or game so we reset everything expect user->accountName to enable relog to gamelobby or game
   user->get ()->communicationChannels.clear ();
   user->get ()->ignoreLogin = false;
   user->get ()->ignoreCreateAccount = false;

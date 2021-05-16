@@ -28,10 +28,11 @@ struct GameLobby
   size_t accountCount ();
   void relogUser (std::shared_ptr<User> &user);
 
+  std::vector<std::shared_ptr<User>> _users{};
+
 private:
   std::string _name{};
   std::string _password{};
-  std::vector<std::shared_ptr<User> > _users{};
   size_t _maxUserCount{ 1 };
 };
 

@@ -2,6 +2,7 @@
 #include "src/database/database.hxx"
 #include "src/pw_hash/passwordHash.hxx"
 #include <algorithm>
+#include <bits/ranges_algo.h>
 #include <boost/algorithm/algorithm.hpp>
 #include <boost/algorithm/string.hpp>
 #include <boost/algorithm/string/predicate.hpp>
@@ -20,6 +21,8 @@
 #include <boost/type_index.hpp>
 #include <confu_boost/confuBoost.hxx>
 #include <crypt.h>
+#include <durak/gameData.hxx>
+#include <fmt/core.h>
 #include <game_01_shared_class/serialization.hxx>
 #include <iostream>
 #include <iterator>
@@ -48,7 +51,7 @@ template <class... Ts> struct overloaded : Ts...
 template <class... Ts> overloaded (Ts...) -> overloaded<Ts...>;
 
 boost::asio::awaitable<std::vector<std::string>>
-handleMessage (std::string const &msg, boost::asio::io_context &io_context, boost::asio::thread_pool &pool, std::list<std::shared_ptr<User>> &users, std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys)
+handleMessage (std::string const &msg, boost::asio::io_context &io_context, boost::asio::thread_pool &pool, std::list<std::shared_ptr<User>> &users, std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys, std::list<Game> &games)
 {
   auto result = std::vector<std::string>{};
   std::vector<std::string> splitMesssage{};
@@ -130,6 +133,19 @@ handleMessage (std::string const &msg, boost::asio::io_context &io_context, boos
         {
           createAccountCancel (user);
         }
+      else if (typeToSearch == "CreateGame")
+        {
+          createGame (user, gameLobbys, games);
+        }
+      else if (typeToSearch == "DurakAttack")
+        {
+          durakAttack (objectAsString, user, games);
+        }
+      else if (typeToSearch == "DurakDefend")
+        {
+          durakDefend (objectAsString, user, games);
+        }
+      // TODO add defend
       else
         {
           std::cout << "could not find a match for typeToSearch '" << typeToSearch << "'" << std::endl;
@@ -305,6 +321,36 @@ leaveChannel (std::string const &objectAsString, User &user)
     }
 }
 
+void
+createGame (std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys, std::list<Game> &games)
+{
+  // TODO PROBLEM: we should only start game if every user acepts "start game"
+  if (auto gameLobbyWithUser = std::ranges::find_if (gameLobbys,
+                                                     [accountName = user->accountName] (auto const &gameLobby) {
+                                                       auto const &accountNames = gameLobby.accountNames ();
+                                                       return std::ranges::find_if (accountNames, [&accountName] (auto const &nameToCheck) { return nameToCheck == accountName; }) != accountNames.end ();
+                                                     });
+      gameLobbyWithUser != gameLobbys.end ())
+    {
+
+      if (gameLobbyWithUser->gameLobbyAdminAccountName () == user->accountName)
+        {
+          auto &game = games.emplace_back (std::move (*gameLobbyWithUser));
+          std::ranges::for_each (game._users, [] (auto &_user) { _user->msgQueue.push_back (objectToStringWithObjectName (shared_class::StartGame{})); });
+          sendGameDataToAccountsInGame (game);
+          gameLobbys.erase (gameLobbyWithUser);
+        }
+      else
+        {
+          user->msgQueue.push_back (objectToStringWithObjectName (shared_class::CreateGameError{ .error = "you need to be admin in a game lobby to start a game" }));
+        }
+    }
+  else
+    {
+      user->msgQueue.push_back (objectToStringWithObjectName (shared_class::CreateGameError{ .error = "you need to be admin in a game lobby to start a game" }));
+    }
+}
+
 std::vector<std::string>
 createGameLobby (std::string const &objectAsString, std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys)
 {
@@ -437,6 +483,7 @@ leaveGameLobby (std::string const &objectAsString, std::shared_ptr<User> user, s
 std::optional<std::string>
 relogTo (std::string const &objectAsString, std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys)
 {
+  // TODO relog into game and not only into lobby
   auto relogToObject = confu_boost::toObject<shared_class::RelogTo> (objectAsString);
   if (auto gameLobbyWithAccount = std::ranges::find_if (gameLobbys,
                                                         [accountName = user->accountName] (auto const &gameLobby) {
@@ -481,6 +528,97 @@ relogTo (std::string const &objectAsString, std::shared_ptr<User> user, std::lis
 }
 
 void
+durakAttack (std::string const &objectAsString, std::shared_ptr<User> user, std::list<Game> &games)
+{
+  auto durakAttackObject = confu_boost::toObject<shared_class::DurakAttack> (objectAsString);
+  if (auto game = std::ranges::find_if (games, [accountName = user->accountName.value ()] (Game const &_game) { return std::ranges::find_if (_game._users, [&accountName] (auto const &_user) { return _user->accountName.value () == accountName; }) != _game._users.end (); }); game != games.end ())
+    {
+      // TODO refactor we can create a get role for player name function and another function for handling the move
+      auto playerRole = durak::PlayerRole::waiting;
+      if (auto attackingPlayer = game->durakGame.getAttackingPlayer ())
+        {
+          if (attackingPlayer->id == user->accountName)
+            {
+              playerRole = durak::PlayerRole::attack;
+              if (game->durakGame.getAttackStarted ())
+                {
+                  if (game->durakGame.playerAssists (durak::PlayerRole::attack, durakAttackObject.cards))
+                    {
+                      user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAttackSuccess{}));
+                      sendGameDataToAccountsInGame (*game);
+                    }
+                  else
+                    {
+                      user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAttackError{ .error = "Error Assist Attack. Role: Attack" }));
+                    }
+                }
+              else
+                {
+                  if (game->durakGame.playerStartsAttack (durakAttackObject.cards))
+                    {
+                      user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAttackSuccess{}));
+                      sendGameDataToAccountsInGame (*game);
+                    }
+                  else
+                    {
+                      user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAttackError{ .error = "Error starting Attack" }));
+                    }
+                }
+            }
+        }
+      if (auto assistingPlayer = game->durakGame.getAssistingPlayer ())
+        {
+          if (assistingPlayer->id == user->accountName)
+            {
+              playerRole = durak::PlayerRole::assistAttacker;
+              if (game->durakGame.getAttackStarted ())
+                {
+                  if (game->durakGame.playerAssists (durak::PlayerRole::attack, durakAttackObject.cards))
+                    {
+                      user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAttackSuccess{}));
+                      sendGameDataToAccountsInGame (*game);
+                    }
+                  else
+                    {
+                      user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAttackError{ .error = "Error Assist Attack. Role: Assist" }));
+                    }
+                }
+            }
+        }
+      if (playerRole != durak::PlayerRole::attack && playerRole != durak::PlayerRole::assistAttacker)
+        {
+          user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAttackError{ .error = "Attacking or Assisting is only allowed if Player has Role Attack or Assist" }));
+        }
+    }
+  else
+    {
+      user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAttackError{ .error = "Could not find a game for Account Name: " + user->accountName.value () }));
+    }
+}
+
+void
+durakDefend (std::string const &objectAsString, std::shared_ptr<User> user, std::list<Game> &games)
+{
+  auto durakDefendObject = confu_boost::toObject<shared_class::DurakDefend> (objectAsString);
+  if (auto game = std::ranges::find_if (games, [accountName = user->accountName.value ()] (Game const &_game) { return std::ranges::find_if (_game._users, [&accountName] (auto const &_user) { return _user->accountName.value () == accountName; }) != _game._users.end (); }); game != games.end ())
+    {
+      if (game->durakGame.playerDefends (durakDefendObject.cardToBeat, durakDefendObject.card))
+        {
+          user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendSuccess{}));
+          sendGameDataToAccountsInGame (*game);
+        }
+      else
+        {
+          user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendError{ .error = "Error while defending " + fmt::format ("CardToBeat{},{} vs. Card{},{}", durakDefendObject.cardToBeat.value, magic_enum::enum_name (durakDefendObject.card.type), durakDefendObject.cardToBeat.value, magic_enum::enum_name (durakDefendObject.card.type)) }));
+        }
+    }
+  else
+    {
+      user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendError{ .error = "Could not find a game for Account Name: " + user->accountName.value () }));
+    }
+}
+
+void
 loginAccountCancel (std::shared_ptr<User> user)
 {
   if (not user->accountName)
@@ -496,4 +634,12 @@ createAccountCancel (std::shared_ptr<User> user)
     {
       user->ignoreCreateAccount = true;
     }
+}
+
+void
+sendGameDataToAccountsInGame (Game const &game)
+{
+  auto gameData = game.durakGame.getGameData ();
+  std::ranges::for_each (gameData.players, [] (auto &player) { std::ranges::sort (player.cards, [] (auto const &card1, auto const &card2) { return card1.value () < card2.value (); }); });
+  std::ranges::for_each (game._users, [&gameData] (auto &_user) { _user->msgQueue.push_back (objectToStringWithObjectName (filterGameDataByAccountName (gameData, _user->accountName.value ()))); });
 }

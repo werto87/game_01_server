@@ -1,8 +1,10 @@
  target_sources(${TARGET_NAME} PRIVATE 
- "server.hxx"
- "server.cxx"
- "user.hxx"
- "user.cxx"
- "gameLobby.hxx"
- "gameLobby.cxx"
+ server.hxx
+ server.cxx
+ user.hxx
+ user.cxx
+ gameLobby.hxx
+ gameLobby.cxx
+ game.hxx
+ game.cxx
  )

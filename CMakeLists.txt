@@ -63,6 +63,7 @@ CONAN_PKG::durak
 CONAN_PKG::range-v3
 CONAN_PKG::game_01_shared_class
 CONAN_PKG::pipes
+CONAN_PKG::fmt
 )
 
 ####### create executable
