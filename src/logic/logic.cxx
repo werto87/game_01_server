@@ -145,7 +145,6 @@ handleMessage (std::string const &msg, boost::asio::io_context &io_context, boos
         {
           durakDefend (objectAsString, user, games);
         }
-      // TODO add defend
       else
         {
           std::cout << "could not find a match for typeToSearch '" << typeToSearch << "'" << std::endl;
