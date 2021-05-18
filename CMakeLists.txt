@@ -64,10 +64,11 @@ CONAN_PKG::range-v3
 CONAN_PKG::game_01_shared_class
 CONAN_PKG::pipes
 CONAN_PKG::fmt
+CONAN_PKG::sml
 )
 
 ####### create executable
-OPTION(BUILD_TESTS "enable tests" OFF)
+OPTION(BUILD_TESTS "enable tests" ON)
 IF(BUILD_TESTS)
     enable_testing()
     add_subdirectory(test) 

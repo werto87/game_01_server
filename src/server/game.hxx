@@ -12,6 +12,7 @@ public:
 
   std::vector<std::shared_ptr<User>> _users{};
   durak::Game durakGame;
+  bool defendingPlayerWantsToDrawCardsFromTable{};
 };
 
 durak::GameData filterGameDataByAccountName (durak::GameData const &gameData, std::string const &accountName);

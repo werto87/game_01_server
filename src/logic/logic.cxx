@@ -113,7 +113,7 @@ handleMessage (std::string const &msg, boost::asio::io_context &io_context, boos
         }
       else if (typeToSearch == "LeaveGameLobby")
         {
-          if (auto leaveGameLobbyResult = leaveGameLobby (objectAsString, user, gameLobbys))
+          if (auto leaveGameLobbyResult = leaveGameLobby (user, gameLobbys))
             {
               result.push_back (leaveGameLobbyResult.value ());
             }
@@ -144,6 +144,10 @@ handleMessage (std::string const &msg, boost::asio::io_context &io_context, boos
       else if (typeToSearch == "DurakDefend")
         {
           durakDefend (objectAsString, user, games);
+        }
+      else if (typeToSearch == "DurakDefendingPlayerWantsToTakeCardsFromTable")
+        {
+          durakDefendingPlayerWantsToTakeCardsFromTable (user, games);
         }
       else
         {
@@ -447,7 +451,7 @@ setMaxUserSizeInCreateGameLobby (std::string const &objectAsString, std::shared_
 }
 
 std::optional<std::string>
-leaveGameLobby (std::string const &objectAsString, std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys)
+leaveGameLobby (std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys)
 {
   if (auto gameLobbyWithAccount = std::ranges::find_if (gameLobbys,
                                                         [accountName = user->accountName] (auto const &gameLobby) {
@@ -601,19 +605,63 @@ durakDefend (std::string const &objectAsString, std::shared_ptr<User> user, std:
   auto durakDefendObject = confu_boost::toObject<shared_class::DurakDefend> (objectAsString);
   if (auto game = std::ranges::find_if (games, [accountName = user->accountName.value ()] (Game const &_game) { return std::ranges::find_if (_game._users, [&accountName] (auto const &_user) { return _user->accountName.value () == accountName; }) != _game._users.end (); }); game != games.end ())
     {
-      if (game->durakGame.playerDefends (durakDefendObject.cardToBeat, durakDefendObject.card))
+      if (auto defendingPlayer = game->durakGame.getDefendingPlayer ())
         {
-          user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendSuccess{}));
-          sendGameDataToAccountsInGame (*game);
+          if (defendingPlayer.value ().id == user->accountName.value ())
+            {
+              if (game->durakGame.playerDefends (durakDefendObject.cardToBeat, durakDefendObject.card))
+                {
+                  user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendSuccess{}));
+                  sendGameDataToAccountsInGame (*game);
+                }
+              else
+                {
+                  user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendError{ .error = "Error while defending " + fmt::format ("CardToBeat: {},{} vs. Card: {},{}", durakDefendObject.cardToBeat.value, magic_enum::enum_name (durakDefendObject.card.type), durakDefendObject.card.value, magic_enum::enum_name (durakDefendObject.card.type)) }));
+                }
+            }
+          else
+            {
+              user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendError{ .error = "Player Role should be defend" }));
+            }
         }
       else
         {
-          user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendError{ .error = "Error while defending " + fmt::format ("CardToBeat: {},{} vs. Card: {},{}", durakDefendObject.cardToBeat.value, magic_enum::enum_name (durakDefendObject.card.type), durakDefendObject.card.value, magic_enum::enum_name (durakDefendObject.card.type)) }));
+          user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendError{ .error = "No defending player" }));
         }
     }
   else
     {
       user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendError{ .error = "Could not find a game for Account Name: " + user->accountName.value () }));
+    }
+}
+
+// TODO when defending player wants to draw cards from table he cant beat any cards. and other players can throw more cards on the table. if attacking and assisting player passes call draw from table
+void
+durakDefendingPlayerWantsToTakeCardsFromTable (std::shared_ptr<User> user, std::list<Game> &games)
+{
+  if (auto game = std::ranges::find_if (games, [accountName = user->accountName.value ()] (Game const &_game) { return std::ranges::find_if (_game._users, [&accountName] (auto const &_user) { return _user->accountName.value () == accountName; }) != _game._users.end (); }); game != games.end ())
+    {
+      if (auto defendingPlayer = game->durakGame.getDefendingPlayer ())
+        {
+          if (defendingPlayer.value ().id == user->accountName.value ())
+            {
+              game->defendingPlayerWantsToDrawCardsFromTable = true;
+              user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendingPlayerWantsToTakeCardsFromTableSuccess{}));
+              sendGameDataToAccountsInGame (*game);
+            }
+          else
+            {
+              user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendingPlayerWantsToTakeCardsFromTableError{ .error = "Player Role should be defend" }));
+            }
+        }
+      else
+        {
+          user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendingPlayerWantsToTakeCardsFromTableError{ .error = "No defending player" }));
+        }
+    }
+  else
+    {
+      user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendingPlayerWantsToTakeCardsFromTableError{ .error = "Could not find a game for Account Name: " + user->accountName.value () }));
     }
 }
 
@@ -639,6 +687,7 @@ void
 sendGameDataToAccountsInGame (Game const &game)
 {
   auto gameData = game.durakGame.getGameData ();
+  gameData.defendingPlayerWantsToDrawCardsFromTable = game.defendingPlayerWantsToDrawCardsFromTable;
   std::ranges::for_each (gameData.players, [] (auto &player) { std::ranges::sort (player.cards, [] (auto const &card1, auto const &card2) { return card1.value () < card2.value (); }); });
   std::ranges::for_each (game._users, [&gameData] (auto &_user) { _user->msgQueue.push_back (objectToStringWithObjectName (filterGameDataByAccountName (gameData, _user->accountName.value ()))); });
 }

@@ -30,7 +30,7 @@ std::optional<std::string> joinGameLobby (std::string const &objectAsString, std
 
 std::optional<std::string> setMaxUserSizeInCreateGameLobby (std::string const &objectAsString, std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys);
 
-std::optional<std::string> leaveGameLobby (std::string const &objectAsString, std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys);
+std::optional<std::string> leaveGameLobby (std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys);
 
 std::optional<std::string> relogTo (std::string const &objectAsString, std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys);
 
@@ -39,6 +39,8 @@ void createGame (std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys, s
 void durakAttack (std::string const &objectAsString, std::shared_ptr<User> user, std::list<Game> &games);
 
 void durakDefend (std::string const &objectAsString, std::shared_ptr<User> user, std::list<Game> &games);
+
+void durakDefendingPlayerWantsToTakeCardsFromTable (std::shared_ptr<User> user, std::list<Game> &games);
 
 void sendGameDataToAccountsInGame (Game const &game);
 
