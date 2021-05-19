@@ -26,11 +26,10 @@ struct AskAttackAndAssist
 {
 };
 
-struct askDef
+struct askAttackAndAssist
 {
 };
-
-struct askAttackAndAssist
+struct askDef
 {
 };
 
@@ -70,11 +69,6 @@ struct rewokePassAssist
 };
 
 struct PassAttackAndAssist
-{
-  bool attack{};
-  bool assist{};
-};
-struct AttackAndAssistAnswer
 {
   bool attack{};
   bool assist{};

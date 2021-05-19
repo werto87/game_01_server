@@ -2,6 +2,7 @@
 #define AD140436_3FBA_4D63_8C0E_9113B92859E0
 
 #include "src/database/database.hxx"
+#include "src/game/logic/gameMachine.hxx"
 #include "src/server/game.hxx"
 #include "src/server/gameLobby.hxx"
 #include "src/server/user.hxx"
@@ -32,7 +33,8 @@ private:
   std::list<boost::beast::websocket::stream<boost::beast::tcp_stream>> connections{};
   std::list<std::shared_ptr<User>> users{};
   std::list<GameLobby> gameLobbys{};
-  std::list<Game> games{};
+  // TODO use state machine instead of game
+  std::list<GameMachine> games{};
 };
 
 #endif /* AD140436_3FBA_4D63_8C0E_9113B92859E0 */

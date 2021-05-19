@@ -1,5 +1,6 @@
 #include "src/logic/logic.hxx"
 #include "src/database/database.hxx"
+#include "src/game/logic/durakStateMachineState.hxx"
 #include "src/pw_hash/passwordHash.hxx"
 #include "src/util.hxx"
 #include <algorithm>
@@ -52,7 +53,7 @@ template <class... Ts> struct overloaded : Ts...
 template <class... Ts> overloaded (Ts...) -> overloaded<Ts...>;
 
 boost::asio::awaitable<std::vector<std::string>>
-handleMessage (std::string const &msg, boost::asio::io_context &io_context, boost::asio::thread_pool &pool, std::list<std::shared_ptr<User>> &users, std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys, std::list<Game> &games)
+handleMessage (std::string const &msg, boost::asio::io_context &io_context, boost::asio::thread_pool &pool, std::list<std::shared_ptr<User>> &users, std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys, std::list<GameMachine> &gameMachines)
 {
   auto result = std::vector<std::string>{};
   std::vector<std::string> splitMesssage{};
@@ -136,20 +137,33 @@ handleMessage (std::string const &msg, boost::asio::io_context &io_context, boos
         }
       else if (typeToSearch == "CreateGame")
         {
-          createGame (user, gameLobbys, games);
+          createGame (user, gameLobbys, gameMachines);
         }
       else if (typeToSearch == "DurakAttack")
         {
-          durakAttack (objectAsString, user, games);
+          durakAttack (objectAsString, user, gameMachines);
         }
       else if (typeToSearch == "DurakDefend")
         {
-          durakDefend (objectAsString, user, games);
+          durakDefend (objectAsString, user, gameMachines);
         }
-      else if (typeToSearch == "DurakDefendingPlayerWantsToTakeCardsFromTable")
+      else if (typeToSearch == "DurakDefendPass")
         {
-          durakDefendingPlayerWantsToTakeCardsFromTable (user, games);
+          durakDefendPass (user, gameMachines);
         }
+      else if (typeToSearch == "DurakAttackPass")
+        {
+          durakAttackPass (user, gameMachines);
+        }
+      else if (typeToSearch == "DurakAssistPass")
+        {
+          durakAssistPass (user, gameMachines);
+        }
+      else if (typeToSearch == "DurakAskDefendWantToTakeCardsAnswer")
+        {
+          durakAskDefendWantToTakeCardsAnswer (objectAsString, user, gameMachines);
+        }
+
       else
         {
           std::cout << "could not find a match for typeToSearch '" << typeToSearch << "'" << std::endl;
@@ -326,9 +340,8 @@ leaveChannel (std::string const &objectAsString, User &user)
 }
 
 void
-createGame (std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys, std::list<Game> &games)
+createGame (std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys, std::list<GameMachine> &gameMachines)
 {
-  // TODO PROBLEM: we should only start game if every user acepts "start game"
   if (auto gameLobbyWithUser = std::ranges::find_if (gameLobbys,
                                                      [accountName = user->accountName] (auto const &gameLobby) {
                                                        auto const &accountNames = gameLobby.accountNames ();
@@ -336,12 +349,11 @@ createGame (std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys, std::l
                                                      });
       gameLobbyWithUser != gameLobbys.end ())
     {
-
       if (gameLobbyWithUser->gameLobbyAdminAccountName () == user->accountName)
         {
-          auto &game = games.emplace_back (std::move (*gameLobbyWithUser));
-          std::ranges::for_each (game._users, [] (auto &_user) { _user->msgQueue.push_back (objectToStringWithObjectName (shared_class::StartGame{})); });
-          //          sendGameDataToAccountsInGame (game);
+          std::ranges::for_each (gameLobbyWithUser->_users, [] (auto &_user) { _user->msgQueue.push_back (objectToStringWithObjectName (shared_class::StartGame{})); });
+          auto &gameMachine = gameMachines.emplace_back (gameLobbyWithUser->_users);
+          sendGameDataToAccountsInGame (gameMachine.getGame (), gameLobbyWithUser->_users);
           gameLobbys.erase (gameLobbyWithUser);
         }
       else
@@ -532,67 +544,12 @@ relogTo (std::string const &objectAsString, std::shared_ptr<User> user, std::lis
 }
 
 void
-durakAttack (std::string const &objectAsString, std::shared_ptr<User> user, std::list<Game> &games)
+durakAttack (std::string const &objectAsString, std::shared_ptr<User> user, std::list<GameMachine> &gameMachines)
 {
   auto durakAttackObject = confu_boost::toObject<shared_class::DurakAttack> (objectAsString);
-  if (auto game = std::ranges::find_if (games, [accountName = user->accountName.value ()] (Game const &_game) { return std::ranges::find_if (_game._users, [&accountName] (auto const &_user) { return _user->accountName.value () == accountName; }) != _game._users.end (); }); game != games.end ())
+  if (auto gameMachine = std::ranges::find_if (gameMachines, [accountName = user->accountName.value ()] (GameMachine const &_game) { return std::ranges::find_if (_game.getUsers (), [&accountName] (auto const &_user) { return _user->accountName.value () == accountName; }) != _game.getUsers ().end (); }); gameMachine != gameMachines.end ())
     {
-      // TODO refactor we can create a get role for player name function and another function for handling the move
-      auto playerRole = durak::PlayerRole::waiting;
-      if (auto attackingPlayer = game->durakGame.getAttackingPlayer ())
-        {
-          if (attackingPlayer->id == user->accountName)
-            {
-              playerRole = durak::PlayerRole::attack;
-              if (game->durakGame.getAttackStarted ())
-                {
-                  if (game->durakGame.playerAssists (durak::PlayerRole::attack, durakAttackObject.cards))
-                    {
-                      user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAttackSuccess{}));
-                      // sendGameDataToAccountsInGame (*game);
-                    }
-                  else
-                    {
-                      user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAttackError{ .error = "Error Assist Attack. Role: Attack" }));
-                    }
-                }
-              else
-                {
-                  if (game->durakGame.playerStartsAttack (durakAttackObject.cards))
-                    {
-                      user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAttackSuccess{}));
-                      //  sendGameDataToAccountsInGame (*game);
-                    }
-                  else
-                    {
-                      user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAttackError{ .error = "Error starting Attack" }));
-                    }
-                }
-            }
-        }
-      if (auto assistingPlayer = game->durakGame.getAssistingPlayer ())
-        {
-          if (assistingPlayer->id == user->accountName)
-            {
-              playerRole = durak::PlayerRole::assistAttacker;
-              if (game->durakGame.getAttackStarted ())
-                {
-                  if (game->durakGame.playerAssists (durak::PlayerRole::attack, durakAttackObject.cards))
-                    {
-                      user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAttackSuccess{}));
-                      //                      sendGameDataToAccountsInGame (*game);
-                    }
-                  else
-                    {
-                      user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAttackError{ .error = "Error Assist Attack. Role: Assist" }));
-                    }
-                }
-            }
-        }
-      if (playerRole != durak::PlayerRole::attack && playerRole != durak::PlayerRole::assistAttacker)
-        {
-          user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAttackError{ .error = "Attacking or Assisting is only allowed if Player has Role Attack or Assist" }));
-        }
+      gameMachine->durakStateMachine.process_event (attack{ .playerName = user->accountName.value (), .cards{ std::move (durakAttackObject.cards) } });
     }
   else
     {
@@ -601,34 +558,12 @@ durakAttack (std::string const &objectAsString, std::shared_ptr<User> user, std:
 }
 
 void
-durakDefend (std::string const &objectAsString, std::shared_ptr<User> user, std::list<Game> &games)
+durakDefend (std::string const &objectAsString, std::shared_ptr<User> user, std::list<GameMachine> &gameMachines)
 {
   auto durakDefendObject = confu_boost::toObject<shared_class::DurakDefend> (objectAsString);
-  if (auto game = std::ranges::find_if (games, [accountName = user->accountName.value ()] (Game const &_game) { return std::ranges::find_if (_game._users, [&accountName] (auto const &_user) { return _user->accountName.value () == accountName; }) != _game._users.end (); }); game != games.end ())
+  if (auto gameMachine = std::ranges::find_if (gameMachines, [accountName = user->accountName.value ()] (GameMachine const &_game) { return std::ranges::find_if (_game.getUsers (), [&accountName] (auto const &_user) { return _user->accountName.value () == accountName; }) != _game.getUsers ().end (); }); gameMachine != gameMachines.end ())
     {
-      if (auto defendingPlayer = game->durakGame.getDefendingPlayer ())
-        {
-          if (defendingPlayer.value ().id == user->accountName.value ())
-            {
-              if (game->durakGame.playerDefends (durakDefendObject.cardToBeat, durakDefendObject.card))
-                {
-                  user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendSuccess{}));
-                  //                  sendGameDataToAccountsInGame (*game);
-                }
-              else
-                {
-                  user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendError{ .error = "Error while defending " + fmt::format ("CardToBeat: {},{} vs. Card: {},{}", durakDefendObject.cardToBeat.value, magic_enum::enum_name (durakDefendObject.card.type), durakDefendObject.card.value, magic_enum::enum_name (durakDefendObject.card.type)) }));
-                }
-            }
-          else
-            {
-              user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendError{ .error = "Player Role should be defend" }));
-            }
-        }
-      else
-        {
-          user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendError{ .error = "No defending player" }));
-        }
+      gameMachine->durakStateMachine.process_event (defend{ .playerName = user->accountName.value (), .cardToBeat{ durakDefendObject.cardToBeat }, .card{ durakDefendObject.card } });
     }
   else
     {
@@ -636,34 +571,51 @@ durakDefend (std::string const &objectAsString, std::shared_ptr<User> user, std:
     }
 }
 
-// TODO when defending player wants to draw cards from table he cant beat any cards. and other players can throw more cards on the table. if attacking and assisting player passes call draw from table
 void
-durakDefendingPlayerWantsToTakeCardsFromTable (std::shared_ptr<User> user, std::list<Game> &games)
+durakAttackPass (std::shared_ptr<User> user, std::list<GameMachine> &gameMachines)
 {
-  // if (auto game = std::ranges::find_if (games, [accountName = user->accountName.value ()] (Game const &_game) { return std::ranges::find_if (_game._users, [&accountName] (auto const &_user) { return _user->accountName.value () == accountName; }) != _game._users.end (); }); game != games.end ())
-  //   {
-  //     if (auto defendingPlayer = game->durakGame.getDefendingPlayer ())
-  //       {
-  //         if (defendingPlayer.value ().id == user->accountName.value ())
-  //           {
-  //             game->defendingPlayerWantsToDrawCardsFromTable = true;
-  //             user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendingPlayerWantsToTakeCardsFromTableSuccess{}));
-  //             //              sendGameDataToAccountsInGame (*game);
-  //           }
-  //         else
-  //           {
-  //             user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendingPlayerWantsToTakeCardsFromTableError{ .error = "Player Role should be defend" }));
-  //           }
-  //       }
-  //     else
-  //       {
-  //         user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendingPlayerWantsToTakeCardsFromTableError{ .error = "No defending player" }));
-  //       }
-  //   }
-  // else
-  //   {
-  //     user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendingPlayerWantsToTakeCardsFromTableError{ .error = "Could not find a game for Account Name: " + user->accountName.value () }));
-  //   }
+  if (auto gameMachine = std::ranges::find_if (gameMachines, [accountName = user->accountName.value ()] (GameMachine const &_game) { return std::ranges::find_if (_game.getUsers (), [&accountName] (auto const &_user) { return _user->accountName.value () == accountName; }) != _game.getUsers ().end (); }); gameMachine != gameMachines.end ())
+    {
+      gameMachine->durakStateMachine.process_event (attackPass{ .playerName = user->accountName.value () });
+    }
+  else
+    {
+      user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAttackPassError{ .error = "Could not find a game for Account Name: " + user->accountName.value () }));
+    }
+}
+
+void
+durakAssistPass (std::shared_ptr<User> user, std::list<GameMachine> &gameMachines)
+{
+  if (auto gameMachine = std::ranges::find_if (gameMachines, [accountName = user->accountName.value ()] (GameMachine const &_game) { return std::ranges::find_if (_game.getUsers (), [&accountName] (auto const &_user) { return _user->accountName.value () == accountName; }) != _game.getUsers ().end (); }); gameMachine != gameMachines.end ())
+    {
+      gameMachine->durakStateMachine.process_event (assistPass{ .playerName = user->accountName.value () });
+    }
+  else
+    {
+      user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAssistPassError{ .error = "Could not find a game for Account Name: " + user->accountName.value () }));
+    }
+}
+
+void
+durakAskDefendWantToTakeCardsAnswer (std::string const &objectAsString, std::shared_ptr<User> user, std::list<GameMachine> &gameMachines)
+{
+  auto durakAskDefendWantToTakeCardsAnswerObject = confu_boost::toObject<shared_class::DurakAskDefendWantToTakeCardsAnswer> (objectAsString);
+  if (auto gameMachine = std::ranges::find_if (gameMachines, [accountName = user->accountName.value ()] (GameMachine const &_game) { return std::ranges::find_if (_game.getUsers (), [&accountName] (auto const &_user) { return _user->accountName.value () == accountName; }) != _game.getUsers ().end (); }); gameMachine != gameMachines.end ())
+    {
+      if (durakAskDefendWantToTakeCardsAnswerObject.answer)
+        {
+          gameMachine->durakStateMachine.process_event (defendAnswerYes{ .playerName = user->accountName.value () });
+        }
+      else
+        {
+          gameMachine->durakStateMachine.process_event (defendAnswerNo{ .playerName = user->accountName.value () });
+        }
+    }
+  else
+    {
+      user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAskDefendWantToTakeCardsAnswerError{ .error = "Could not find a game for Account Name: " + user->accountName.value () }));
+    }
 }
 
 void
@@ -681,5 +633,17 @@ createAccountCancel (std::shared_ptr<User> user)
   if (not user->accountName)
     {
       user->ignoreCreateAccount = true;
+    }
+}
+void
+durakDefendPass (std::shared_ptr<User> user, std::list<GameMachine> &gameMachines)
+{
+  if (auto gameMachine = std::ranges::find_if (gameMachines, [accountName = user->accountName.value ()] (GameMachine const &_game) { return std::ranges::find_if (_game.getUsers (), [&accountName] (auto const &_user) { return _user->accountName.value () == accountName; }) != _game.getUsers ().end (); }); gameMachine != gameMachines.end ())
+    {
+      gameMachine->durakStateMachine.process_event (defendPass{ .playerName = user->accountName.value () });
+    }
+  else
+    {
+      user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendPassError{ .error = "Could not find a game for Account Name: " + user->accountName.value () }));
     }
 }
