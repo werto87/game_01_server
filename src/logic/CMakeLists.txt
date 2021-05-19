@@ -1,4 +1,5 @@
  target_sources(${TARGET_NAME} PRIVATE 
- "logic.hxx"
- "logic.cxx"
+ ${CMAKE_CURRENT_LIST_DIR}/logic.hxx
+ logic.cxx
  )
+

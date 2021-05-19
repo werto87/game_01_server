@@ -15,6 +15,4 @@ public:
   bool defendingPlayerWantsToDrawCardsFromTable{};
 };
 
-durak::GameData filterGameDataByAccountName (durak::GameData const &gameData, std::string const &accountName);
-
 #endif /* A9C5A17B_0A43_476F_9D91_9A6A4CC4B8E3 */

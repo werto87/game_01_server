@@ -4,8 +4,11 @@
 #include "durak/gameData.hxx"
 #include "src/game/logic/durakStateMachineState.hxx"
 #include "src/server/user.hxx"
+#include "src/util.hxx"
 #include <bits/ranges_algo.h>
 #include <boost/sml.hpp>
+#include <fmt/format.h>
+#include <game_01_shared_class/serialization.hxx>
 #include <iostream>
 #include <optional>
 #include <queue>
@@ -44,18 +47,59 @@ struct my_logger
   }
 };
 
-// TODO think about 2 player solution maybe allways pass for assist??
-
 // care const& is not &. AttackAndAssistAnswer &attackAndAssistAnswer is another object than AttackAndAssistAnswer const&attackAndAssistAnswer
-auto const hasNoAnswerFromAttack = [] (AttackAndAssistAnswer &attackAndAssistAnswer) { return not attackAndAssistAnswer.attack.has_value (); };
-auto const hasNoAnswerFromAssist = [] (AttackAndAssistAnswer &attackAndAssistAnswer) { return not attackAndAssistAnswer.assist.has_value (); };
 
-auto const allCardsBeaten = [] (durak::Game &game) { return game.countOfNotBeatenCardsOnTable () == 0 && game.getAttackStarted (); };
+auto const allCardsBeaten = [] (durak::Game &game) {
+  //
+  return game.countOfNotBeatenCardsOnTable () == 0 && game.getAttackStarted ();
+};
 
 auto const isDefendingPlayer = [] (defend const &defendEv, durak::Game &game) { return game.getRoleForName (defendEv.playerName) == durak::PlayerRole::defend; };
 
-auto const setAttackAnswer = [] (attackAnswer const &attackAnswerEv, AttackAndAssistAnswer &attackAndAssistAnswer) { attackAndAssistAnswer.attack = attackAnswerEv.accept; };
-auto const setAssistAnswer = [] (assistAnswer const &assistAnswerEv, AttackAndAssistAnswer &attackAndAssistAnswer) { attackAndAssistAnswer.assist = assistAnswerEv.accept; };
+auto const setAttackAnswer = [] (attackPass const &attackPassEv, AttackAndAssistAnswer &attackAndAssistAnswer, durak::Game &game, std::vector<std::shared_ptr<User>> &users) {
+  if (auto userItr = std::ranges::find_if (users, [accountName = attackPassEv.playerName] (std::shared_ptr<User> &user) { return user->accountName.value () == accountName; }); userItr != users.end ())
+    {
+      auto &sendingUserMsgQueue = userItr->get ()->msgQueue;
+      if (not attackAndAssistAnswer.attack)
+        {
+          if (game.getRoleForName (attackPassEv.playerName) == durak::PlayerRole::attack)
+            {
+              attackAndAssistAnswer.attack = true;
+              sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendWantsToTakeCardsFromTableDoneAddingCardsSuccess{}));
+            }
+          else
+            {
+              sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendWantsToTakeCardsFromTableDoneAddingCardsError{ .error = "role is not attack" }));
+            }
+        }
+      else
+        {
+          sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendWantsToTakeCardsFromTableDoneAddingCardsError{ .error = "pass already set" }));
+        }
+    }
+};
+auto const setAssistAnswer = [] (assistPass const &assistPassEv, AttackAndAssistAnswer &attackAndAssistAnswer, durak::Game &game, std::vector<std::shared_ptr<User>> &users) {
+  if (auto userItr = std::ranges::find_if (users, [accountName = assistPassEv.playerName] (std::shared_ptr<User> &user) { return user->accountName.value () == accountName; }); userItr != users.end ())
+    {
+      auto &sendingUserMsgQueue = userItr->get ()->msgQueue;
+      if (not attackAndAssistAnswer.assist)
+        {
+          if (game.getRoleForName (assistPassEv.playerName) == durak::PlayerRole::assistAttacker)
+            {
+              sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendWantsToTakeCardsFromTableDoneAddingCardsSuccess{}));
+              attackAndAssistAnswer.assist = true;
+            }
+          else
+            {
+              sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendWantsToTakeCardsFromTableDoneAddingCardsError{ .error = "role is not assist" }));
+            }
+        }
+      else
+        {
+          sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendWantsToTakeCardsFromTableDoneAddingCardsError{ .error = "pass already set" }));
+        }
+    }
+};
 
 auto const checkData = [] (PassAttackAndAssist &passAttackAndAssist, durak::Game &game, boost::sml::back::process<askDef> process_event) {
   if (auto attackingPlayer = game.getAttackingPlayer (); not attackingPlayer || attackingPlayer->getCards ().empty ())
@@ -72,7 +116,7 @@ auto const checkData = [] (PassAttackAndAssist &passAttackAndAssist, durak::Game
     }
 };
 
-auto const checkAttackAndAssistAnswer = [] (AttackAndAssistAnswer &attackAndAssistAnswer, durak::Game &game, boost::sml::back::process<chill> process_event) {
+auto const checkAttackAndAssistAnswer = [] (AttackAndAssistAnswer &attackAndAssistAnswer, durak::Game &game, std::vector<std::shared_ptr<User>> &users, boost::sml::back::process<chill> process_event) {
   if (auto attackingPlayer = game.getAttackingPlayer (); not attackingPlayer || attackingPlayer->getCards ().empty ())
     {
       attackAndAssistAnswer.attack = true;
@@ -81,10 +125,10 @@ auto const checkAttackAndAssistAnswer = [] (AttackAndAssistAnswer &attackAndAssi
     {
       attackAndAssistAnswer.assist = true;
     }
-  if (attackAndAssistAnswer.attack && attackAndAssistAnswer.assist && attackAndAssistAnswer.attack.value () && attackAndAssistAnswer.assist.value ())
+  if (attackAndAssistAnswer.attack && attackAndAssistAnswer.assist)
     {
       game.nextRound (true);
-      // TODO send info to all player
+      sendGameDataToAccountsInGame (game, users);
       process_event (chill{});
     }
 };
@@ -94,31 +138,28 @@ auto const startAskDef = [] (durak::Game &game, std::vector<std::shared_ptr<User
     {
       if (auto player = std::ranges::find_if (users, [&defendingPlayer] (std::shared_ptr<User> const &user) { return user->accountName.value () == defendingPlayer->id; }); player != users.end ())
         {
-          // TODO push ask def msg
-          // player->get()->msgQueue.push_back()
+          player->get ()->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAskDefendWantToTakeCards{}));
         }
     }
 };
 
 auto const startAskAttackAndAssist = [] (AttackAndAssistAnswer &attackAndAssistAnswer, durak::Game &game, std::vector<std::shared_ptr<User>> &users) {
-  if (auto attackingPlayer = game.getAttackingPlayer (); not attackingPlayer->getCards ().empty ())
+  if (auto attackingPlayer = game.getAttackingPlayer (); attackingPlayer && not attackingPlayer->getCards ().empty ())
     {
       if (auto player = std::ranges::find_if (users, [&attackingPlayer] (std::shared_ptr<User> const &user) { return user->accountName.value () == attackingPlayer->id; }); player != users.end ())
         {
-          // TODO push ask attack msg
-          // player->get()->msgQueue.push_back()
+          player->get ()->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendWantsToTakeCardsFromTableDoYouWantToAddCards{}));
         }
     }
   else
     {
       attackAndAssistAnswer.attack = true;
     }
-  if (auto assistingPlayer = game.getAssistingPlayer (); not assistingPlayer->getCards ().empty ())
+  if (auto assistingPlayer = game.getAssistingPlayer (); assistingPlayer && not assistingPlayer->getCards ().empty ())
     {
       if (auto player = std::ranges::find_if (users, [&assistingPlayer] (std::shared_ptr<User> const &user) { return user->accountName.value () == assistingPlayer->id; }); player != users.end ())
         {
-          // TODO push ask assist msg
-          // player->get()->msgQueue.push_back()
+          player->get ()->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendWantsToTakeCardsFromTableDoYouWantToAddCards{}));
         }
     }
   else
@@ -127,13 +168,57 @@ auto const startAskAttackAndAssist = [] (AttackAndAssistAnswer &attackAndAssistA
     }
 };
 
-auto const setAttackPass = [] (PassAttackAndAssist &passAttackAndAssist) { passAttackAndAssist.assist = true; };
+auto const setAttackPass = [] (attackPass const &attackPassEv, PassAttackAndAssist &passAttackAndAssist, durak::Game &game, std::vector<std::shared_ptr<User>> &users) {
+  if (auto userItr = std::ranges::find_if (users, [accountName = attackPassEv.playerName] (std::shared_ptr<User> &user) { return user->accountName.value () == accountName; }); userItr != users.end ())
+    {
+      auto &sendingUserMsgQueue = userItr->get ()->msgQueue;
+      auto playerRole = game.getRoleForName (attackPassEv.playerName);
+      if (game.countOfNotBeatenCardsOnTable () == 0)
+        {
+          if (playerRole == durak::PlayerRole::attack)
+            {
+              passAttackAndAssist.attack = true;
+              sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAttackPassSuccess{}));
+            }
+          else
+            {
+              sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAttackPassError{ .error = "account role is not attack: " + attackPassEv.playerName }));
+            }
+        }
+      else
+        {
+          sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAttackPassError{ .error = "there are not beaten cards on the table" }));
+        }
+    }
+};
 
-auto const setAssistPass = [] (PassAttackAndAssist &passAttackAndAssist) { passAttackAndAssist.attack = true; };
+auto const setAssistPass = [] (assistPass const &assistPassEv, PassAttackAndAssist &passAttackAndAssist, durak::Game &game, std::vector<std::shared_ptr<User>> &users) {
+  if (auto userItr = std::ranges::find_if (users, [accountName = assistPassEv.playerName] (std::shared_ptr<User> &user) { return user->accountName.value () == accountName; }); userItr != users.end ())
+    {
+      auto &sendingUserMsgQueue = userItr->get ()->msgQueue;
+      auto playerRole = game.getRoleForName (assistPassEv.playerName);
+      if (game.countOfNotBeatenCardsOnTable () == 0)
+        {
+          if (playerRole == durak::PlayerRole::assistAttacker)
+            {
+              passAttackAndAssist.assist = true;
+              sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAssistPassSuccess{}));
+            }
+          else
+            {
+              sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAssistPassError{ .error = "account role is not assist: " + assistPassEv.playerName }));
+            }
+        }
+      else
+        {
+          sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAssistPassError{ .error = "there are not beaten cards on the table" }));
+        }
+    }
+};
 
-auto const handleDefendSuccess = [] (durak::Game &game) {
+auto const handleDefendSuccess = [] (durak::Game &game, std::vector<std::shared_ptr<User>> &users) {
   game.nextRound (false);
-  // TODO send info to all player
+  sendGameDataToAccountsInGame (game, users);
 };
 
 auto const resetPassStateMachineData = [] (PassAttackAndAssist &passAttackAndAssist, AttackAndAssistAnswer &attackAndAssistAnswer) {
@@ -147,56 +232,76 @@ auto const setRewokePassAssist = [] (PassAttackAndAssist &passAttackAndAssist) {
 auto const setRewokePassAttack = [] (PassAttackAndAssist &passAttackAndAssist) { passAttackAndAssist.attack = false; };
 
 auto const doAttack = [] (PassAttackAndAssist &passAttackAndAssist, attack const &attackEv, durak::Game &game, std::vector<std::shared_ptr<User>> &users) {
-  // TODO send results to users msg queue
-  // TODO if cards get player rewoke pass from everyone
-  auto playerRole = game.getRoleForName (attackEv.playerName);
-  if (playerRole == durak::PlayerRole::attack)
+  if (auto userItr = std::ranges::find_if (users, [accountName = attackEv.playerName] (std::shared_ptr<User> &user) { return user->accountName.value () == accountName; }); userItr != users.end ())
     {
-      if (game.getAttackStarted ())
+      auto &sendingUserMsgQueue = userItr->get ()->msgQueue;
+      auto playerRole = game.getRoleForName (attackEv.playerName);
+      if (playerRole == durak::PlayerRole::attack)
         {
-          if (game.playerAssists (playerRole, attackEv.cards))
+          if (game.getAttackStarted ())
             {
-              // TODO send message attack success
-              passAttackAndAssist = PassAttackAndAssist{};
+              if (game.playerAssists (playerRole, attackEv.cards))
+                {
+                  sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAttackSuccess{}));
+                  sendGameDataToAccountsInGame (game, users);
+                  passAttackAndAssist = PassAttackAndAssist{};
+                }
+              else
+                {
+                  sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAttackError{ .error = "not allowed to play cards" }));
+                }
             }
           else
             {
-              // TODO send message attack error
+              if (game.playerStartsAttack (attackEv.cards))
+                {
+                  sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAttackSuccess{}));
+                  sendGameDataToAccountsInGame (game, users);
+                  passAttackAndAssist = PassAttackAndAssist{};
+                }
+              else
+                {
+                  sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAttackError{ .error = "not allowed to play cards" }));
+                }
             }
         }
-      else
+      else if (playerRole == durak::PlayerRole::assistAttacker)
         {
-          if (game.playerStartsAttack (attackEv.cards))
+          if (game.getAttackStarted ())
             {
-              // TODO send message attack success
-              passAttackAndAssist = PassAttackAndAssist{};
-            }
-          else
-            {
-              // TODO send message attack error
-            }
-        }
-    }
-  else if (playerRole == durak::PlayerRole::assistAttacker)
-    {
-      if (game.getAttackStarted ())
-        {
-          if (game.playerAssists (playerRole, attackEv.cards))
-            {
-              // TODO send message attack success
-              passAttackAndAssist = PassAttackAndAssist{};
-            }
-          else
-            {
-              // TODO send message attack error
+              if (game.playerAssists (playerRole, attackEv.cards))
+                {
+                  sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAttackSuccess{}));
+                  sendGameDataToAccountsInGame (game, users);
+                  passAttackAndAssist = PassAttackAndAssist{};
+                }
+              else
+                {
+                  sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAttackError{ .error = "not allowed to play cards" }));
+                }
             }
         }
     }
 };
 
 auto const doDefend = [] (defend const &defendEv, durak::Game &game, std::vector<std::shared_ptr<User>> &users) {
-  // TODO send results to users msg queue
-  game.playerDefends (defendEv.cardToBeat, defendEv.card);
+  if (auto userItr = std::ranges::find_if (users, [accountName = defendEv.playerName] (std::shared_ptr<User> &user) { return user->accountName.value () == accountName; }); userItr != users.end ())
+    {
+      auto &sendingUserMsgQueue = userItr->get ()->msgQueue;
+      auto playerRole = game.getRoleForName (defendEv.playerName);
+      if (playerRole == durak::PlayerRole::defend)
+        {
+          if (game.playerDefends (defendEv.cardToBeat, defendEv.card))
+            {
+              sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendSuccess{}));
+              sendGameDataToAccountsInGame (game, users);
+            }
+          else
+            {
+              sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendError{ .error = "Error while defending " + fmt::format ("CardToBeat: {},{} vs. Card: {},{}", defendEv.cardToBeat.value, magic_enum::enum_name (defendEv.cardToBeat.type), defendEv.card.value, magic_enum::enum_name (defendEv.card.type)) }));
+            }
+        }
+    }
 };
 
 struct PassMachine
@@ -212,8 +317,8 @@ struct PassMachine
 * state<Chill>                  + on_entry<_>                                             / resetPassStateMachineData           
 , state<Chill>                  + event<askDef>                                                                                       = state<AskDef>
 , state<Chill>                  + event<askAttackAndAssist>                                                                           = state<AskAttackAndAssist>
-, state<Chill>                  + event<attackPass>             [ allCardsBeaten ]        /(setAttackPass,checkData)
-, state<Chill>                  + event<assistPass>             [ allCardsBeaten ]        /(setAssistPass,checkData)
+, state<Chill>                  + event<attackPass>                                       /(setAttackPass,checkData)
+, state<Chill>                  + event<assistPass>                                       /(setAssistPass,checkData)
 , state<Chill>                  + event<defendPass>                                                                                   = state<AskAttackAndAssist>
 , state<Chill>                  + event<attack>                                           / doAttack 
 , state<Chill>                  + event<defend>                 [isDefendingPlayer]       / doDefend 
@@ -223,8 +328,9 @@ struct PassMachine
 , state<AskDef>                 + event<defendAnswerNo>                                   / handleDefendSuccess                         = state<Chill>
 /*--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/      
 , state<AskAttackAndAssist>     + on_entry<_>                                             / startAskAttackAndAssist
-, state<AskAttackAndAssist>     + event<attackAnswer>           [ hasNoAnswerFromAttack ] /(setAttackAnswer,checkAttackAndAssistAnswer)
-, state<AskAttackAndAssist>     + event<assistAnswer>           [ hasNoAnswerFromAssist ] /(setAssistAnswer,checkAttackAndAssistAnswer)
+, state<AskAttackAndAssist>     + event<attackPass>                                     /(setAttackAnswer,checkAttackAndAssistAnswer)
+, state<AskAttackAndAssist>     + event<assistPass>                                     /(setAssistAnswer,checkAttackAndAssistAnswer)
+, state<AskAttackAndAssist>     + event<attack>                                           / doAttack 
 , state<AskAttackAndAssist>     + event<chill>                                                                                          =state<Chill>
 /*--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/      
 // clang-format on   

@@ -1,10 +1,11 @@
  target_sources(${TARGET_NAME} PRIVATE 
- server.hxx
+ ${CMAKE_CURRENT_LIST_DIR}/server.hxx
+ ${CMAKE_CURRENT_LIST_DIR}/gameLobby.hxx
+ ${CMAKE_CURRENT_LIST_DIR}/user.hxx
+ ${CMAKE_CURRENT_LIST_DIR}/game.hxx
  server.cxx
- user.hxx
  user.cxx
- gameLobby.hxx
  gameLobby.cxx
- game.hxx
  game.cxx
  )
+

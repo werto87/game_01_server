@@ -29,11 +29,8 @@ struct AskAttackAndAssist
 struct askDef
 {
 };
-struct askAttackAndAssist
-{
-};
 
-struct attackPass
+struct askAttackAndAssist
 {
 };
 
@@ -50,11 +47,18 @@ struct defend
   durak::Card card{};
 };
 
+struct attackPass
+{
+  std::string playerName{};
+};
+
 struct assistPass
 {
+  std::string playerName{};
 };
 struct defendPass
 {
+  std::string playerName{};
 };
 
 struct rewokePassAttack
@@ -72,22 +76,17 @@ struct PassAttackAndAssist
 };
 struct AttackAndAssistAnswer
 {
-  std::optional<bool> attack{};
-  std::optional<bool> assist{};
+  bool attack{};
+  bool assist{};
 };
-struct attackAnswer
-{
-  bool accept{};
-};
-struct assistAnswer
-{
-  bool accept{};
-};
+
 struct defendAnswerYes
 {
+  std::string playerName{};
 };
 struct defendAnswerNo
 {
+  std::string playerName{};
 };
 
 #endif /* A30C538C_58C3_49A5_8853_24519FACCE71 */

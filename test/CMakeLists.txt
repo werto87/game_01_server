@@ -5,7 +5,7 @@ get_target_property(TARGET_LIBS ${TARGET_NAME} LINK_LIBRARIES)
 add_executable(${TEST_TARGET_NAME} 
 main.cxx
 test.cxx
-constant.hxx
+${CMAKE_CURRENT_LIST_DIR}/constant.hxx
 gameMachine.cxx
 ${TARGET_SOURCES}
  )
@@ -24,3 +24,7 @@ target_include_directories(${TEST_TARGET_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DI
 
 add_test(NAME ${TEST_TARGET_NAME}
          COMMAND ${TEST_TARGET_NAME} -r junit) 
+
+         
+
+ 

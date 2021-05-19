@@ -5,7 +5,7 @@
 #include "src/server/user.hxx"
 #include <boost/asio.hpp>
 #include <boost/optional.hpp>
-#include <confu_soci/convenienceFunctionForSoci.hxx>
+
 #include <game_01_shared_class/serialization.hxx>
 #include <string>
 #include <vector>
@@ -42,18 +42,7 @@ void durakDefend (std::string const &objectAsString, std::shared_ptr<User> user,
 
 void durakDefendingPlayerWantsToTakeCardsFromTable (std::shared_ptr<User> user, std::list<Game> &games);
 
-void sendGameDataToAccountsInGame (Game const &game);
-
-template <typename TypeToSend>
-std::string
-objectToStringWithObjectName (TypeToSend const &typeToSend)
-{
-  return confu_soci::typeNameWithOutNamespace (typeToSend) + '|' + confu_boost::toString (typeToSend);
-}
-
 void loginAccountCancel (std::shared_ptr<User> user);
 void createAccountCancel (std::shared_ptr<User> user);
 
 #endif /* E18680A5_3B06_4019_A849_6CDB82D14796 */
-
-void sendGameDataToAccountsInGame (Game const &game);
