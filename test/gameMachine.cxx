@@ -33,9 +33,7 @@ TEST_CASE ("player starts attack cards on table", "[game]")
   gameMachine.durakStateMachine.process_event (attack{ .playerName = attackingPlayer->id, .cards{ attackingPlayer->getCards ().at (0) } });
   REQUIRE (not player1MsgQueue.empty ());
   REQUIRE (player1MsgQueue.at (0) == "DurakAttackSuccess|22 serialization::archive 18 0 0");
-  REQUIRE (player1MsgQueue.at (1) == "GameData|22 serialization::archive 18 0 0 1 0 0 1 0 0 0 0 0 6 0 0 1 0 0 0 2 0 0 0 7 Player1 0 0 5 1 1 4 0 1 4 1 1 4 2 1 4 3 1 5 1 0 7 Player2 6 1 0 0 0 0 0 0 1");
   REQUIRE (not player2MsgQueue.empty ());
-  REQUIRE (player2MsgQueue.at (0) == "GameData|22 serialization::archive 18 0 0 1 0 0 1 0 0 0 0 0 6 0 0 1 0 0 0 2 0 0 0 7 Player1 0 0 5 1 0 0 0 0 0 0 7 Player2 6 1 1 1 1 1 5 0 1 6 1 1 7 0 1 8 0 1 9 0 1");
   REQUIRE (not gameMachine.getGame ().getTable ().empty ());
   REQUIRE (gameMachine.getGame ().getTable ().front ().first == durak::Card{ .value = 6, .type = durak::Type::hearts });
 }
@@ -64,9 +62,6 @@ TEST_CASE ("player beats card and round ends", "[game]")
   player2MsgQueue.clear ();
   durak.process_event (defend{ .playerName = defendingPlayer.id, .cardToBeat = cardToBeat, .card = defendingPlayer.getCards ().at (0) });
   REQUIRE (not player1MsgQueue.empty ());
-  REQUIRE (player2MsgQueue.front () == "DurakDefendSuccess|22 serialization::archive 18 0 0");
-  REQUIRE (player2MsgQueue.at (1) == "GameData|22 serialization::archive 18 0 0 1 0 0 1 0 0 0 0 0 6 0 0 1 1 9 0 0 0 2 0 0 0 7 Player1 0 0 5 1 0 0 0 0 0 0 7 Player2 5 1 1 1 1 1 5 0 1 6 1 1 7 0 1 8 0 1");
-  REQUIRE (player1MsgQueue.at (0) == "GameData|22 serialization::archive 18 0 0 1 0 0 1 0 0 0 0 0 6 0 0 1 1 9 0 0 0 2 0 0 0 7 Player1 0 0 5 1 1 4 0 1 4 1 1 4 2 1 4 3 1 5 1 0 7 Player2 5 1 0 0 0 0 0 1");
   REQUIRE (player1MsgQueue.at (0) != player2MsgQueue.at (1));
   REQUIRE (slotToPutCardIn.has_value ());
   REQUIRE (attackingPlayer.id == "Player1");
@@ -219,6 +214,76 @@ TEST_CASE ("defend takes cards", "[game]")
   gameMachine.durakStateMachine.process_event (defendPass{ .playerName = defendingPlayer.id });
   REQUIRE (gameMachine.getGame ().getRound () == 1);
   REQUIRE (attackingPlayer.getCards ().size () == 5);
+}
+
+TEST_CASE ("game ends", "[game]")
+{
+  std::vector<std::shared_ptr<User>> users{};
+  users.emplace_back (std::make_shared<User> (User{}))->accountName = "Player1";
+  users.emplace_back (std::make_shared<User> (User{}))->accountName = "Player2";
+  auto gameMachine = GameMachine{ durak::Game{ { "Player1", "Player2" }, testCardDeckMax36 (7) }, users };
+  auto &player1MsgQueue = users.at (0)->msgQueue;
+  auto &player2MsgQueue = users.at (1)->msgQueue;
+  REQUIRE (gameMachine.getGame ().getPlayers ().size () == 2);
+  REQUIRE (gameMachine.getGame ().getPlayers ().at (0).id == "Player1");
+  auto &attackingPlayer = gameMachine.getGame ().getAttackingPlayer ().value ();
+  auto &defendingPlayer = gameMachine.getGame ().getDefendingPlayer ().value ();
+  gameMachine.durakStateMachine.process_event (attack{ .playerName = attackingPlayer.id, .cards{ attackingPlayer.getCards ().at (0) } });
+  gameMachine.durakStateMachine.process_event (defendPass{ .playerName = defendingPlayer.id });
+  gameMachine.durakStateMachine.process_event (attackPass{ .playerName = attackingPlayer.id });
+  gameMachine.durakStateMachine.process_event (attack{ .playerName = attackingPlayer.id, .cards{ attackingPlayer.getCards ().at (0) } });
+  gameMachine.durakStateMachine.process_event (defendPass{ .playerName = defendingPlayer.id });
+  gameMachine.durakStateMachine.process_event (attackPass{ .playerName = attackingPlayer.id });
+  gameMachine.durakStateMachine.process_event (attack{ .playerName = attackingPlayer.id, .cards{ attackingPlayer.getCards ().at (0) } });
+  gameMachine.durakStateMachine.process_event (defendPass{ .playerName = defendingPlayer.id });
+  gameMachine.durakStateMachine.process_event (attackPass{ .playerName = attackingPlayer.id });
+  gameMachine.durakStateMachine.process_event (attack{ .playerName = attackingPlayer.id, .cards{ attackingPlayer.getCards ().at (0) } });
+  gameMachine.durakStateMachine.process_event (defendPass{ .playerName = defendingPlayer.id });
+  gameMachine.durakStateMachine.process_event (attackPass{ .playerName = attackingPlayer.id });
+  gameMachine.durakStateMachine.process_event (attack{ .playerName = attackingPlayer.id, .cards{ attackingPlayer.getCards ().at (0) } });
+  gameMachine.durakStateMachine.process_event (defendPass{ .playerName = defendingPlayer.id });
+  gameMachine.durakStateMachine.process_event (attackPass{ .playerName = attackingPlayer.id });
+  gameMachine.durakStateMachine.process_event (attack{ .playerName = attackingPlayer.id, .cards{ attackingPlayer.getCards ().at (0) } });
+  gameMachine.durakStateMachine.process_event (defendPass{ .playerName = defendingPlayer.id });
+  gameMachine.durakStateMachine.process_event (attackPass{ .playerName = attackingPlayer.id });
+  REQUIRE (gameMachine.getGame ().checkIfGameIsOver ());
+  REQUIRE (gameMachine.getGame ().durak ().has_value ());
+}
+
+TEST_CASE ("game ends draw", "[game]")
+{
+  std::vector<std::shared_ptr<User>> users{};
+  users.emplace_back (std::make_shared<User> (User{}))->accountName = "Player1";
+  users.emplace_back (std::make_shared<User> (User{}))->accountName = "Player2";
+  auto gameMachine = GameMachine{ durak::Game{ { "Player1", "Player2" }, testCardDeckMax36 (8) }, users };
+  auto &player1MsgQueue = users.at (0)->msgQueue;
+  auto &player2MsgQueue = users.at (1)->msgQueue;
+  REQUIRE (gameMachine.getGame ().getPlayers ().size () == 2);
+  REQUIRE (gameMachine.getGame ().getPlayers ().at (0).id == "Player1");
+  auto &attackingPlayer = gameMachine.getGame ().getAttackingPlayer ().value ();
+  auto &defendingPlayer = gameMachine.getGame ().getDefendingPlayer ().value ();
+  auto &table = gameMachine.getGame ().getTable ();
+  gameMachine.durakStateMachine.process_event (attack{ .playerName = attackingPlayer.id, .cards{ attackingPlayer.getCards ().at (0) } });
+  gameMachine.durakStateMachine.process_event (defendPass{ .playerName = defendingPlayer.id });
+  gameMachine.durakStateMachine.process_event (attackPass{ .playerName = attackingPlayer.id });
+  gameMachine.durakStateMachine.process_event (attack{ .playerName = attackingPlayer.id, .cards{ attackingPlayer.getCards ().at (0) } });
+  gameMachine.durakStateMachine.process_event (defend{ .playerName = defendingPlayer.id, .cardToBeat = table.at (0).first, .card = defendingPlayer.getCards ().at (0) });
+  gameMachine.durakStateMachine.process_event (attackPass{ .playerName = attackingPlayer.id });
+  gameMachine.durakStateMachine.process_event (defendAnswerNo{ .playerName = defendingPlayer.id });
+  gameMachine.durakStateMachine.process_event (attack{ .playerName = attackingPlayer.id, .cards{ attackingPlayer.getCards ().at (1) } });
+  gameMachine.durakStateMachine.process_event (defend{ .playerName = defendingPlayer.id, .cardToBeat = table.at (0).first, .card = defendingPlayer.getCards ().at (2) });
+  gameMachine.durakStateMachine.process_event (attackPass{ .playerName = attackingPlayer.id });
+  gameMachine.durakStateMachine.process_event (defendAnswerNo{ .playerName = defendingPlayer.id });
+  gameMachine.durakStateMachine.process_event (attack{ .playerName = attackingPlayer.id, .cards{ attackingPlayer.getCards ().at (0) } });
+  gameMachine.durakStateMachine.process_event (defendPass{ .playerName = defendingPlayer.id });
+  gameMachine.durakStateMachine.process_event (attackPass{ .playerName = attackingPlayer.id });
+  gameMachine.durakStateMachine.process_event (attack{ .playerName = attackingPlayer.id, .cards{ attackingPlayer.getCards ().at (0) } });
+  gameMachine.durakStateMachine.process_event (defend{ .playerName = defendingPlayer.id, .cardToBeat = table.at (0).first, .card = defendingPlayer.getCards ().at (1) });
+  gameMachine.durakStateMachine.process_event (attack{ .playerName = attackingPlayer.id, .cards{ attackingPlayer.getCards ().at (0) } });
+  REQUIRE (not gameMachine.getGame ().checkIfGameIsOver ());
+  gameMachine.durakStateMachine.process_event (defend{ .playerName = defendingPlayer.id, .cardToBeat = table.at (1).first, .card = defendingPlayer.getCards ().at (0) });
+  gameMachine.getGame ().checkIfGameIsOver ();
+  REQUIRE (not gameMachine.getGame ().durak ().has_value ());
 }
 
 }

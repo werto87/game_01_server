@@ -103,7 +103,7 @@ auto const setAssistAnswer = [] (assistPass const &assistPassEv, PassAttackAndAs
     }
 };
 
-auto const checkData = [] (PassAttackAndAssist &passAttackAndAssist, durak::Game &game, boost::sml::back::process<askDef> process_event) {
+auto const checkData = [] (PassAttackAndAssist &passAttackAndAssist, durak::Game &game, boost::sml::back::process<askDef> process_event, std::vector<std::shared_ptr<User>> &users) {
   if (auto attackingPlayer = game.getAttackingPlayer (); not attackingPlayer || attackingPlayer->getCards ().empty ())
     {
       passAttackAndAssist.attack = true;
@@ -115,6 +115,14 @@ auto const checkData = [] (PassAttackAndAssist &passAttackAndAssist, durak::Game
   if (passAttackAndAssist.assist && passAttackAndAssist.attack && game.countOfNotBeatenCardsOnTable () == 0)
     {
       process_event (askDef{});
+    }
+  if (game.checkIfGameIsOver ())
+    {
+      std::ranges::for_each (users, [durak = game.durak ()->id] (std::shared_ptr<User> const &user) {
+        if (user->accountName == durak) user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverLose{}));
+        else
+          user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverWon{}));
+      });
     }
 };
 
@@ -345,7 +353,6 @@ struct PassMachine
   auto
   operator() () const
   {
-    // TODO rewoke pass when user plays card
     using namespace boost::sml;
     return make_transition_table (
         // clang-format off
