@@ -56,14 +56,8 @@ target_link_libraries(${TARGET_NAME} PRIVATE
 ${PROJECT_WARNINGS}
 ${PROJECT_OPTIONS}
 CONAN_PKG::confu_soci
-CONAN_PKG::confu_boost
-CONAN_PKG::boost
 CONAN_PKG::libsodium
-CONAN_PKG::durak
-CONAN_PKG::range-v3
 CONAN_PKG::game_01_shared_class
-CONAN_PKG::pipes
-CONAN_PKG::fmt
 CONAN_PKG::sml
 )
 

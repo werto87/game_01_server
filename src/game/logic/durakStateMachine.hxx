@@ -118,11 +118,18 @@ auto const checkData = [] (PassAttackAndAssist &passAttackAndAssist, durak::Game
     }
   if (game.checkIfGameIsOver ())
     {
-      std::ranges::for_each (users, [durak = game.durak ()->id] (std::shared_ptr<User> const &user) {
-        if (user->accountName == durak) user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverLose{}));
-        else
-          user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverWon{}));
-      });
+      if (auto durak = game.durak ())
+        {
+          std::ranges::for_each (users, [durak = durak->id] (std::shared_ptr<User> const &user) {
+            if (user->accountName == durak) user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverLose{}));
+            else
+              user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverWon{}));
+          });
+        }
+      else
+        {
+          std::ranges::for_each (users, [] (std::shared_ptr<User> const &user) { user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverDraw{})); });
+        }
     }
 };
 

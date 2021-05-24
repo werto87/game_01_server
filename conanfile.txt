@@ -1,13 +1,6 @@
 [requires]
-boost/1.75.0
-durak/0.0.1@durak/0.0.1             #from https://github.com/werto87/durak
-confu_boost/0.0.1@confu_boost/0.0.1 #from https://github.com/werto87/confu_boost
 confu_soci/0.2.0@confu_soci/0.2.0   #from https://github.com/werto87/conan_confu_soci
-catch2/2.13.1
 libsodium/1.0.18
-range-v3/0.11.0
-pipes/1.0.0
-fmt/7.1.3
 sml/1.1.4
 game_01_shared_class/0.0.1@game_01_shared_class/0.0.1 #from https://github.com/werto87/game_01_shared_class.git
 [generators]
