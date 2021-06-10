@@ -56,13 +56,14 @@ target_link_libraries(${TARGET_NAME} PRIVATE
 ${PROJECT_WARNINGS}
 ${PROJECT_OPTIONS}
 CONAN_PKG::confu_soci
+CONAN_PKG::confu_json
 CONAN_PKG::libsodium
 CONAN_PKG::game_01_shared_class
 CONAN_PKG::sml
 )
 
 ####### create executable
-OPTION(BUILD_TESTS "enable tests" ON)
+OPTION(BUILD_TESTS "enable tests" OFF)
 IF(BUILD_TESTS)
     enable_testing()
     add_subdirectory(test) 

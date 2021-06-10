@@ -19,12 +19,13 @@
 #include <boost/fusion/sequence.hpp>
 #include <boost/fusion/sequence/intrinsic/value_at.hpp>
 #include <boost/fusion/support/pair.hpp>
+#include <boost/json/src.hpp>
 #include <boost/optional.hpp>
 #include <boost/optional/optional_io.hpp>
 #include <boost/serialization/optional.hpp>
 #include <boost/type_index.hpp>
 #include <catch2/catch.hpp>
-#include <confu_boost/confuBoost.hxx>
+#include <confu_json/confu_json.hxx>
 #include <confu_soci/convenienceFunctionForSoci.hxx>
 #include <functional>
 #include <game_01_shared_class/serialization.hxx>

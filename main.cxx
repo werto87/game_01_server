@@ -1,6 +1,7 @@
 #include "src/database/database.hxx"
 #include "src/server/server.hxx"
 #include <boost/bind/bind.hpp>
+#include <boost/json/src.hpp>
 #include <exception>
 #include <iostream>
 #include <sodium.h>

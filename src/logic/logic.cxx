@@ -21,7 +21,7 @@
 #include <boost/serialization/optional.hpp>
 #include <boost/serialization/vector.hpp>
 #include <boost/type_index.hpp>
-#include <confu_boost/confuBoost.hxx>
+#include <confu_json/confu_json.hxx>
 #include <crypt.h>
 #include <durak/gameData.hxx>
 #include <fmt/core.h>
@@ -176,7 +176,7 @@ handleMessage (std::string const &msg, boost::asio::io_context &io_context, boos
 boost::asio::awaitable<std::string>
 createAccountAndLogin (std::string objectAsString, boost::asio::io_context &io_context, std::shared_ptr<User> user, boost::asio::thread_pool &pool)
 {
-  auto createAccountObject = confu_boost::toObject<shared_class::CreateAccount> (objectAsString);
+  auto createAccountObject = stringToObject<shared_class::CreateAccount> (objectAsString);
   soci::session sql (soci::sqlite3, pathToTestDatabase);
   if (confu_soci::findStruct<database::Account> (sql, "accountName", createAccountObject.accountName))
     {
@@ -207,7 +207,7 @@ createAccountAndLogin (std::string objectAsString, boost::asio::io_context &io_c
 boost::asio::awaitable<std::string>
 loginAccount (std::string objectAsString, boost::asio::io_context &io_context, std::list<std::shared_ptr<User>> &users, std::shared_ptr<User> user, boost::asio::thread_pool &pool, std::list<GameLobby> &gameLobbys)
 {
-  auto loginAccountObject = confu_boost::toObject<shared_class::LoginAccount> (objectAsString);
+  auto loginAccountObject = stringToObject<shared_class::LoginAccount> (objectAsString);
   if (not user->accountName)
     {
       soci::session sql (soci::sqlite3, pathToTestDatabase);
@@ -286,7 +286,7 @@ logoutAccount (User &user)
 std::optional<std::string>
 broadCastMessage (std::string const &objectAsString, std::list<std::shared_ptr<User>> &users, User const &sendingUser)
 {
-  auto broadCastMessageObject = confu_boost::toObject<shared_class::BroadCastMessage> (objectAsString);
+  auto broadCastMessageObject = stringToObject<shared_class::BroadCastMessage> (objectAsString);
   if (sendingUser.accountName)
     {
       for (auto &user : users | ranges::views::filter ([channel = broadCastMessageObject.channel, accountName = sendingUser.accountName] (auto const &user) { return user->communicationChannels.find (channel) != user->communicationChannels.end (); }))
@@ -306,7 +306,7 @@ broadCastMessage (std::string const &objectAsString, std::list<std::shared_ptr<U
 std::string
 joinChannel (std::string const &objectAsString, User &user)
 {
-  auto joinChannelObject = confu_boost::toObject<shared_class::JoinChannel> (objectAsString);
+  auto joinChannelObject = stringToObject<shared_class::JoinChannel> (objectAsString);
   if (user.accountName)
     {
       user.communicationChannels.insert (joinChannelObject.channel);
@@ -321,7 +321,7 @@ joinChannel (std::string const &objectAsString, User &user)
 std::string
 leaveChannel (std::string const &objectAsString, User &user)
 {
-  auto leaveChannelObject = confu_boost::toObject<shared_class::LeaveChannel> (objectAsString);
+  auto leaveChannelObject = stringToObject<shared_class::LeaveChannel> (objectAsString);
   if (user.accountName)
     {
       if (user.communicationChannels.erase (leaveChannelObject.channel))
@@ -370,7 +370,7 @@ createGame (std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys, std::l
 std::vector<std::string>
 createGameLobby (std::string const &objectAsString, std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys)
 {
-  auto createGameLobbyObject = confu_boost::toObject<shared_class::CreateGameLobby> (objectAsString);
+  auto createGameLobbyObject = stringToObject<shared_class::CreateGameLobby> (objectAsString);
   if (std::ranges::find_if (gameLobbys, [gameLobbyName = createGameLobbyObject.name, lobbyPassword = createGameLobbyObject.password] (auto const &_gameLobby) { return _gameLobby.gameLobbyName () == gameLobbyName && _gameLobby.gameLobbyPassword () == lobbyPassword; }) == gameLobbys.end ())
     {
       if (auto gameLobbyWithUser = std::ranges::find_if (gameLobbys,
@@ -411,7 +411,7 @@ createGameLobby (std::string const &objectAsString, std::shared_ptr<User> user, 
 std::optional<std::string>
 joinGameLobby (std::string const &objectAsString, std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys)
 {
-  auto joinGameLobbyObject = confu_boost::toObject<shared_class::JoinGameLobby> (objectAsString);
+  auto joinGameLobbyObject = stringToObject<shared_class::JoinGameLobby> (objectAsString);
   if (auto gameLobby = std::ranges::find_if (gameLobbys, [gameLobbyName = joinGameLobbyObject.name, lobbyPassword = joinGameLobbyObject.password] (auto const &_gameLobby) { return _gameLobby.gameLobbyName () == gameLobbyName && _gameLobby.gameLobbyPassword () == lobbyPassword; }); gameLobby != gameLobbys.end ())
     {
       if (gameLobby->tryToAddUser (user))
@@ -438,7 +438,7 @@ joinGameLobby (std::string const &objectAsString, std::shared_ptr<User> user, st
 std::optional<std::string>
 setMaxUserSizeInCreateGameLobby (std::string const &objectAsString, std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys)
 {
-  auto setMaxUserSizeInCreateGameLobbyObject = confu_boost::toObject<shared_class::SetMaxUserSizeInCreateGameLobby> (objectAsString);
+  auto setMaxUserSizeInCreateGameLobbyObject = stringToObject<shared_class::SetMaxUserSizeInCreateGameLobby> (objectAsString);
   auto accountNameToSearch = user->accountName.value ();
   if (auto gameLobbyWithAccount = std::ranges::find_if (gameLobbys,
                                                         [accountName = user->accountName] (auto const &gameLobby) {
@@ -500,7 +500,7 @@ std::optional<std::string>
 relogTo (std::string const &objectAsString, std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys)
 {
   // TODO relog into game and not only into lobby
-  auto relogToObject = confu_boost::toObject<shared_class::RelogTo> (objectAsString);
+  auto relogToObject = stringToObject<shared_class::RelogTo> (objectAsString);
   if (auto gameLobbyWithAccount = std::ranges::find_if (gameLobbys,
                                                         [accountName = user->accountName] (auto const &gameLobby) {
                                                           auto const &accountNames = gameLobby.accountNames ();
@@ -546,7 +546,7 @@ relogTo (std::string const &objectAsString, std::shared_ptr<User> user, std::lis
 void
 durakAttack (std::string const &objectAsString, std::shared_ptr<User> user, std::list<GameMachine> &gameMachines)
 {
-  auto durakAttackObject = confu_boost::toObject<shared_class::DurakAttack> (objectAsString);
+  auto durakAttackObject = stringToObject<shared_class::DurakAttack> (objectAsString);
   if (auto gameMachine = std::ranges::find_if (gameMachines, [accountName = user->accountName.value ()] (GameMachine const &_game) { return std::ranges::find_if (_game.getUsers (), [&accountName] (auto const &_user) { return _user->accountName.value () == accountName; }) != _game.getUsers ().end (); }); gameMachine != gameMachines.end ())
     {
       gameMachine->durakStateMachine.process_event (attack{ .playerName = user->accountName.value (), .cards{ std::move (durakAttackObject.cards) } });
@@ -560,7 +560,7 @@ durakAttack (std::string const &objectAsString, std::shared_ptr<User> user, std:
 void
 durakDefend (std::string const &objectAsString, std::shared_ptr<User> user, std::list<GameMachine> &gameMachines)
 {
-  auto durakDefendObject = confu_boost::toObject<shared_class::DurakDefend> (objectAsString);
+  auto durakDefendObject = stringToObject<shared_class::DurakDefend> (objectAsString);
   if (auto gameMachine = std::ranges::find_if (gameMachines, [accountName = user->accountName.value ()] (GameMachine const &_game) { return std::ranges::find_if (_game.getUsers (), [&accountName] (auto const &_user) { return _user->accountName.value () == accountName; }) != _game.getUsers ().end (); }); gameMachine != gameMachines.end ())
     {
       gameMachine->durakStateMachine.process_event (defend{ .playerName = user->accountName.value (), .cardToBeat{ durakDefendObject.cardToBeat }, .card{ durakDefendObject.card } });
@@ -600,7 +600,7 @@ durakAssistPass (std::shared_ptr<User> user, std::list<GameMachine> &gameMachine
 void
 durakAskDefendWantToTakeCardsAnswer (std::string const &objectAsString, std::shared_ptr<User> user, std::list<GameMachine> &gameMachines)
 {
-  auto durakAskDefendWantToTakeCardsAnswerObject = confu_boost::toObject<shared_class::DurakAskDefendWantToTakeCardsAnswer> (objectAsString);
+  auto durakAskDefendWantToTakeCardsAnswerObject = stringToObject<shared_class::DurakAskDefendWantToTakeCardsAnswer> (objectAsString);
   if (auto gameMachine = std::ranges::find_if (gameMachines, [accountName = user->accountName.value ()] (GameMachine const &_game) { return std::ranges::find_if (_game.getUsers (), [&accountName] (auto const &_user) { return _user->accountName.value () == accountName; }) != _game.getUsers ().end (); }); gameMachine != gameMachines.end ())
     {
       if (durakAskDefendWantToTakeCardsAnswerObject.answer)

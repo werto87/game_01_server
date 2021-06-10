@@ -1,7 +1,6 @@
 #ifndef B86FE02F_B7D0_4435_9031_A334C305B294
 #define B86FE02F_B7D0_4435_9031_A334C305B294
 
-#include "confu_boost/confuBoost.hxx"
 #include "confu_soci/convenienceFunctionForSoci.hxx"
 #include "src/database/constant.hxx"
 #include <boost/optional.hpp>
