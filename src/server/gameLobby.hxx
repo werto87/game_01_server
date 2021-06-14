@@ -1,6 +1,7 @@
 #ifndef DBE82937_D6AB_4777_A3C8_A62B68300AA3
 #define DBE82937_D6AB_4777_A3C8_A62B68300AA3
 
+#include "durak/gameOption.hxx"
 #include "src/server/user.hxx"
 #include <cstddef>
 #include <list>
@@ -29,6 +30,7 @@ struct GameLobby
   void relogUser (std::shared_ptr<User> &user);
 
   std::vector<std::shared_ptr<User>> _users{};
+  durak::GameOption gameOption{};
 
 private:
   std::string _name{};

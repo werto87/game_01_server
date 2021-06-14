@@ -33,6 +33,8 @@ std::optional<std::string> joinGameLobby (std::string const &objectAsString, std
 
 std::optional<std::string> setMaxUserSizeInCreateGameLobby (std::string const &objectAsString, std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys);
 
+std::optional<std::string> setMaxCardValueInCreateGameLobby (std::string const &objectAsString, std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys);
+
 std::optional<std::string> leaveGameLobby (std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys);
 
 std::optional<std::string> relogTo (std::string const &objectAsString, std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys);
@@ -49,6 +51,8 @@ void durakAttackPass (std::shared_ptr<User> user, std::list<GameMachine> &gameMa
 
 void durakAssistPass (std::shared_ptr<User> user, std::list<GameMachine> &gameMachines);
 void durakAskDefendWantToTakeCardsAnswer (std::string const &objectAsString, std::shared_ptr<User> user, std::list<GameMachine> &gameMachines);
+
+void durakLeaveGame (std::shared_ptr<User> user, std::list<GameMachine> &gameMachines);
 
 void loginAccountCancel (std::shared_ptr<User> user);
 void createAccountCancel (std::shared_ptr<User> user);
