@@ -160,6 +160,32 @@ auto const startAskDef = [] (durak::Game &game, std::vector<std::shared_ptr<User
     }
 };
 
+auto const userLeftGame = [] (leaveGame const &leaveGameEv, durak::Game &game, std::vector<std::shared_ptr<User>> &users) {
+  if (auto userItr = std::ranges::find_if (users, [accountName = leaveGameEv.accountName] (std::shared_ptr<User> const &_user) { return _user->accountName == accountName; }); userItr != users.end ())
+    {
+      if (not game.checkIfGameIsOver ())
+        {
+          game.removePlayer (leaveGameEv.accountName);
+        }
+      if (game.checkIfGameIsOver ())
+        {
+          if (auto durak = game.durak ())
+            {
+              std::ranges::for_each (users, [durak = durak->id] (std::shared_ptr<User> const &user) {
+                if (user->accountName == durak) user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverLose{}));
+                else
+                  user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverWon{}));
+              });
+            }
+          else
+            {
+              std::ranges::for_each (users, [] (std::shared_ptr<User> const &user) { user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverDraw{})); });
+            }
+        }
+      users.erase (userItr);
+    }
+};
+
 auto const startAskAttackAndAssist = [] (PassAttackAndAssist &passAttackAndAssist, durak::Game &game, std::vector<std::shared_ptr<User>> &users) {
   passAttackAndAssist = PassAttackAndAssist{};
   if (auto attackingPlayer = game.getAttackingPlayer (); attackingPlayer && not attackingPlayer->getCards ().empty ())
@@ -183,6 +209,26 @@ auto const startAskAttackAndAssist = [] (PassAttackAndAssist &passAttackAndAssis
   else
     {
       passAttackAndAssist.assist = true;
+    }
+  if (passAttackAndAssist.assist && passAttackAndAssist.attack)
+    {
+      game.nextRound (true);
+      sendGameDataToAccountsInGame (game, users);
+      if (game.checkIfGameIsOver ())
+        {
+          if (auto durak = game.durak ())
+            {
+              std::ranges::for_each (users, [durak = durak->id] (std::shared_ptr<User> const &user) {
+                if (user->accountName == durak) user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverLose{}));
+                else
+                  user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverWon{}));
+              });
+            }
+          else
+            {
+              std::ranges::for_each (users, [] (std::shared_ptr<User> const &user) { user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverDraw{})); });
+            }
+        }
     }
 };
 
@@ -398,6 +444,7 @@ struct PassMachine
 , state<AskAttackAndAssist>     + event<attack>                                           / doAttack 
 , state<AskAttackAndAssist>     + event<chill>                                                                                          =state<Chill>
 /*--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/      
+,*"leaveGameHAndler"_s          + event<leaveGame>                                        / userLeftGame                                
 // clang-format on   
     );
   }

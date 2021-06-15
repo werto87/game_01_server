@@ -29,21 +29,6 @@ struct GameMachine
     return _users;
   }
 
-  bool
-  removeUser (User const &user)
-  {
-    if (auto userItr = std::ranges::find_if (_users, [accountName = user.accountName] (std::shared_ptr<User> const &_user) { return _user->accountName == accountName; }); userItr != _users.end ())
-      {
-        _users.erase (userItr);
-        _game.removePlayer (user.accountName.value ());
-        return true;
-      }
-    else
-      {
-        return false;
-      }
-  }
-
   DurakStateMachine durakStateMachine;
 
 private:

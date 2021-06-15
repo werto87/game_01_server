@@ -702,10 +702,15 @@ durakLeaveGame (std::shared_ptr<User> user, std::list<GameMachine> &gameMachines
 {
   if (auto gameMachine = std::ranges::find_if (gameMachines, [accountName = user->accountName.value ()] (GameMachine const &_game) { return std::ranges::find_if (_game.getUsers (), [&accountName] (auto const &_user) { return _user->accountName.value () == accountName; }) != _game.getUsers ().end (); }); gameMachine != gameMachines.end ())
     {
-      gameMachine->removeUser (*user.get ());
+      gameMachine->durakStateMachine.process_event (leaveGame{ .accountName = user->accountName.value () });
+      if (gameMachine->getUsers ().empty ())
+        {
+          gameMachines.erase (gameMachine);
+        }
     }
   else
     {
       user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakLeaveGameError{ .error = "Could not find a game for Account Name: " + user->accountName.value () }));
     }
+  std::cout << "gameMachines.size (): " << gameMachines.size () << std::endl;
 }

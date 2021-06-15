@@ -83,4 +83,9 @@ struct defendAnswerNo
   std::string playerName{};
 };
 
+struct leaveGame
+{
+  std::string accountName{};
+};
+
 #endif /* A30C538C_58C3_49A5_8853_24519FACCE71 */
