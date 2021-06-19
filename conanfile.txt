@@ -3,7 +3,7 @@ confu_soci/0.2.0@werto87/stable
 libsodium/1.0.18
 sml/1.1.4
 game_01_shared_class/0.0.1@werto87/stable
-confu_json/0.0.3@werto87/stable
+confu_json/0.0.4@werto87/stable
 durak/0.0.2@werto87/stable 
 [generators]
 cmake
