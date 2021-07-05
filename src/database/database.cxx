@@ -29,7 +29,7 @@ boost::optional<Account>
 createAccount (std::string const &accountName, std::string const &password)
 {
   soci::session sql (soci::sqlite3, pathToTestDatabase);
-  return confu_soci::findStruct<Account> (sql, "accountName", confu_soci::insertStruct (sql, Account{ .accountName = accountName, .password = password }, true));
+  return confu_soci::findStruct<Account> (sql, "accountName", confu_soci::insertStruct (sql, Account{ accountName, password }, true));
 }
 
 } // namespace database

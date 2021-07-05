@@ -1,4 +1,5 @@
 #include "src/util.hxx"
+#include <ranges>
 
 durak::GameData
 filterGameDataByAccountName (durak::GameData const &gameData, std::string const &accountName)

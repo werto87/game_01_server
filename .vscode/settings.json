@@ -93,7 +93,11 @@
         "locale": "cpp",
         "queue": "cpp",
         "semaphore": "cpp",
-        "stack": "cpp"
+        "stack": "cpp",
+        "strstream": "cpp",
+        "regex": "cpp",
+        "numbers": "cpp",
+        "shared_mutex": "cpp"
     },
     "sqltools.connections": [
         {

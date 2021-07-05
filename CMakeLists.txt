@@ -40,7 +40,7 @@ enable_sanitizers(${PROJECT_OPTIONS})
 include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
 conan_basic_setup(TARGETS)
 
-
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(TARGET_NAME project)
 add_executable(${TARGET_NAME})
 
