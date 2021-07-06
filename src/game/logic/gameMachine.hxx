@@ -8,7 +8,7 @@
 
 struct GameMachine
 {
-  GameMachine (std::vector<std::shared_ptr<User>> users) : durakStateMachine{ my_logger{}, PassAttackAndAssist{}, _game, _users }, _users{ users }
+  explicit GameMachine (std::vector<std::shared_ptr<User>> users) : durakStateMachine{ my_logger{}, PassAttackAndAssist{}, _game, _users }, _users{ users }
   {
     auto names = std::vector<std::string>{};
     std::ranges::transform (_users, std::back_inserter (names), [] (auto const &tempUser) { return tempUser->accountName.value (); });

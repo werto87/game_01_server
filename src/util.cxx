@@ -17,5 +17,5 @@ sendGameDataToAccountsInGame (durak::Game const &game, std::vector<std::shared_p
 {
   auto gameData = game.getGameData ();
   std::ranges::for_each (gameData.players, [] (auto &player) { std::ranges::sort (player.cards, [] (auto const &card1, auto const &card2) { return card1.value () < card2.value (); }); });
-  std::ranges::for_each (users, [&gameData] (auto &_user) { _user->msgQueue.push_back (objectToStringWithObjectName (filterGameDataByAccountName (gameData, _user->accountName.value ()))); });
+  std::ranges::for_each (users, [&gameData] (auto const &_user) { _user->msgQueue.push_back (objectToStringWithObjectName (filterGameDataByAccountName (gameData, _user->accountName.value ()))); });
 }

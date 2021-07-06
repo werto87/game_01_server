@@ -1,4 +1,4 @@
-option(ENABLE_CPPCHECK "Enable static analysis with cppcheck" OFF) #does not work with c++20 features
+option(ENABLE_CPPCHECK "Enable static analysis with cppcheck" ON) #does not work with c++20 features
 option(ENABLE_CLANG_TIDY "Enable static analysis with clang-tidy" OFF) #does not work with c++20 features and precompiled headers together
 option(ENABLE_INCLUDE_WHAT_YOU_USE "Enable static analysis with include-what-you-use" OFF)
 
@@ -8,18 +8,16 @@ if(ENABLE_CPPCHECK)
   if(CPPCHECK)
     message("cpp check found")
         message(${CMAKE_CURRENT_SOURCE_DIR})
-    set(CMAKE_CXX_CPPCHECK
+        set(CMAKE_CXX_CPPCHECK
         ${CPPCHECK}
         --suppress=missingInclude
         --enable=all
         --inline-suppr
         --inconclusive
-	--output-file=cppcheck_result.txt
-	--quiet
-	--template="{file}::{line}::{message}"
-	-i
+        --cppcheck-build-dir=${CMAKE_CURRENT_SOURCE_DIR}/build
+        -i
         ${CMAKE_SOURCE_DIR}/imgui/lib)
-  else()
+      else()
     message(SEND_ERROR "cppcheck requested but executable not found")
   endif()
 endif()

@@ -106,5 +106,6 @@
             "name": "game_db",
             "database": "${workspaceFolder:game_01_server}/build/database/game_db"
         }
-    ]
+    ],
+    "clang-tidy.buildPath": "/home/walde/projects/game_01_server/build/",
 }

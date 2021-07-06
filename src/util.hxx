@@ -15,7 +15,7 @@ objectToStringWithObjectName (TypeToSend const &typeToSend)
 
 template <typename T>
 T
-stringToObject (std::string const objectAsString)
+stringToObject (std::string const &objectAsString)
 {
   T t{};
   boost::json::error_code ec{};

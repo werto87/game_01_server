@@ -71,12 +71,12 @@ auto const setAttackAnswer = [] (attackPass const &attackPassEv, PassAttackAndAs
             }
           else
             {
-              sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendWantsToTakeCardsFromTableDoneAddingCardsError{  "role is not attack" }));
+              sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendWantsToTakeCardsFromTableDoneAddingCardsError{ "role is not attack" }));
             }
         }
       else
         {
-          sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendWantsToTakeCardsFromTableDoneAddingCardsError{  "pass already set" }));
+          sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendWantsToTakeCardsFromTableDoneAddingCardsError{ "pass already set" }));
         }
     }
 };
@@ -93,17 +93,17 @@ auto const setAssistAnswer = [] (assistPass const &assistPassEv, PassAttackAndAs
             }
           else
             {
-              sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendWantsToTakeCardsFromTableDoneAddingCardsError{  "role is not assist" }));
+              sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendWantsToTakeCardsFromTableDoneAddingCardsError{ "role is not assist" }));
             }
         }
       else
         {
-          sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendWantsToTakeCardsFromTableDoneAddingCardsError{  "pass already set" }));
+          sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendWantsToTakeCardsFromTableDoneAddingCardsError{ "pass already set" }));
         }
     }
 };
 
-auto const checkData = [] (PassAttackAndAssist &passAttackAndAssist, durak::Game &game, boost::sml::back::process<askDef> process_event, std::vector<std::shared_ptr<User>> &users) {
+auto const checkData = [] (PassAttackAndAssist &passAttackAndAssist, durak::Game &game, boost::sml::back::process<askDef> process_event) {
   if (auto attackingPlayer = game.getAttackingPlayer (); not attackingPlayer || attackingPlayer->getCards ().empty ())
     {
       passAttackAndAssist.attack = true;
@@ -246,12 +246,12 @@ auto const setAttackPass = [] (attackPass const &attackPassEv, PassAttackAndAssi
             }
           else
             {
-              sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAttackPassError{  "account role is not attack: " + attackPassEv.playerName }));
+              sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAttackPassError{ "account role is not attack: " + attackPassEv.playerName }));
             }
         }
       else
         {
-          sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAttackPassError{  "there are not beaten cards on the table" }));
+          sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAttackPassError{ "there are not beaten cards on the table" }));
         }
     }
 };
@@ -270,12 +270,12 @@ auto const setAssistPass = [] (assistPass const &assistPassEv, PassAttackAndAssi
             }
           else
             {
-              sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAssistPassError{  "account role is not assist: " + assistPassEv.playerName }));
+              sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAssistPassError{ "account role is not assist: " + assistPassEv.playerName }));
             }
         }
       else
         {
-          sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAssistPassError{  "there are not beaten cards on the table" }));
+          sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAssistPassError{ "there are not beaten cards on the table" }));
         }
     }
 };
@@ -307,7 +307,7 @@ auto const handleDefendSuccess = [] (defendAnswerNo const &defendAnswerNoEv, dur
         }
       else
         {
-          sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAskDefendWantToTakeCardsAnswerError{  "account role is not defend: " + defendAnswerNoEv.playerName }));
+          sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAskDefendWantToTakeCardsAnswerError{ "account role is not defend: " + defendAnswerNoEv.playerName }));
         }
     }
 };
@@ -326,12 +326,12 @@ auto const handleDefendPass = [] (defendPass const &defendPassEv, durak::Game &g
             }
           else
             {
-              sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendPassError{  "attack is not started" }));
+              sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendPassError{ "attack is not started" }));
             }
         }
       else
         {
-          sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendPassError{  "account role is not defiend: " + defendPassEv.playerName }));
+          sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendPassError{ "account role is not defiend: " + defendPassEv.playerName }));
         }
     }
 };
@@ -360,7 +360,7 @@ auto const doAttack = [] (PassAttackAndAssist &passAttackAndAssist, attack const
                 }
               else
                 {
-                  sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAttackError{  "not allowed to play cards" }));
+                  sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAttackError{ "not allowed to play cards" }));
                 }
             }
           else
@@ -373,7 +373,7 @@ auto const doAttack = [] (PassAttackAndAssist &passAttackAndAssist, attack const
                 }
               else
                 {
-                  sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAttackError{  "not allowed to play cards" }));
+                  sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAttackError{ "not allowed to play cards" }));
                 }
             }
         }
@@ -389,7 +389,7 @@ auto const doAttack = [] (PassAttackAndAssist &passAttackAndAssist, attack const
                 }
               else
                 {
-                  sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAttackError{  "not allowed to play cards" }));
+                  sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAttackError{ "not allowed to play cards" }));
                 }
             }
         }
@@ -410,7 +410,7 @@ auto const doDefend = [] (defend const &defendEv, durak::Game &game, std::vector
             }
           else
             {
-              sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendError{  "Error while defending " + fmt::format ("CardToBeat: {},{} vs. Card: {},{}", defendEv.cardToBeat.value, magic_enum::enum_name (defendEv.cardToBeat.type), defendEv.card.value, magic_enum::enum_name (defendEv.card.type)) }));
+              sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendError{ "Error while defending " + fmt::format ("CardToBeat: {},{} vs. Card: {},{}", defendEv.cardToBeat.value, magic_enum::enum_name (defendEv.cardToBeat.type), defendEv.card.value, magic_enum::enum_name (defendEv.card.type)) }));
             }
         }
     }
