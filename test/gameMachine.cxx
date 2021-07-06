@@ -1,7 +1,6 @@
 #include "src/game/logic/gameMachine.hxx"
 #include "durak/gameData.hxx"
 #include "src/game/logic/durakStateMachineState.hxx"
-#include <bits/ranges_algo.h>
 #include <catch2/catch.hpp>
 #include <cstddef>
 #include <durak/card.hxx>

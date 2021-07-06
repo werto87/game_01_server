@@ -97,7 +97,8 @@
         "strstream": "cpp",
         "regex": "cpp",
         "numbers": "cpp",
-        "shared_mutex": "cpp"
+        "shared_mutex": "cpp",
+        "slist": "cpp"
     },
     "sqltools.connections": [
         {

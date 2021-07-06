@@ -1,4 +1,5 @@
 [requires]
+#range-v3/0.11.0
 boost/1.76.0
 confu_soci/0.2.0@werto87/stable
 libsodium/1.0.18

@@ -1,9 +1,8 @@
 #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -fcoroutines")
 #set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -g -fuse-ld=lld -fcoroutines")
 
-
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -fcoroutines-ts -std=c++20")
-set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -g -fuse-ld=lld -fcoroutines-ts -std=c++20")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g  -std=c++20 -stdlib=libc++")
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -g  -std=c++20 -stdlib=libc++ -lc++abi")
 
 #set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fcoroutines -v")
 cmake_minimum_required(VERSION 3.17)
@@ -39,7 +38,7 @@ include(cmake/Sanitizers.cmake)
 enable_sanitizers(${PROJECT_OPTIONS})
 
 #allow for static analysis options
-include(cmake/StaticAnalyzers.cmake) 
+#include(cmake/StaticAnalyzers.cmake) 
 
  
 ######## conan setup
@@ -61,6 +60,7 @@ target_include_directories(${TARGET_NAME} PRIVATE
 target_link_libraries(${TARGET_NAME} PRIVATE
 ${PROJECT_WARNINGS}
 ${PROJECT_OPTIONS}
+CONAN_PKG::range-v3
 CONAN_PKG::confu_soci
 CONAN_PKG::confu_json
 CONAN_PKG::libsodium

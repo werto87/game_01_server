@@ -4,14 +4,14 @@
 #include "src/game/logic/durakStateMachine.hxx"
 #include <algorithm>
 #include <iterator>
-#include <ranges>
+#include <range/v3/all.hpp>
 
 struct GameMachine
 {
   explicit GameMachine (std::vector<std::shared_ptr<User>> users) : durakStateMachine{ my_logger{}, PassAttackAndAssist{}, _game, _users }, _users{ users }
   {
     auto names = std::vector<std::string>{};
-    std::ranges::transform (_users, std::back_inserter (names), [] (auto const &tempUser) { return tempUser->accountName.value (); });
+    ranges::transform (_users, ranges::back_inserter (names), [] (auto const &tempUser) { return tempUser->accountName.value (); });
     _game = durak::Game{ std::move (names) };
   }
 

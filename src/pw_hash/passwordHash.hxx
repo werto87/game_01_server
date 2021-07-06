@@ -11,7 +11,6 @@
 #include <boost/beast/core.hpp>
 #include <boost/beast/core/saved_handler.hpp>
 #include <chrono>
-#include <coroutine>
 #include <cstddef>
 #include <iostream>
 #include <memory>

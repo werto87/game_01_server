@@ -27,7 +27,7 @@ std::vector<std::string>
 GameLobby::accountNames () const
 {
   auto result = std::vector<std::string>{};
-  std::ranges::transform (_users, std::back_inserter (result), [] (auto const &user) { return user->accountName.value_or ("Error User is not Logged  in but still in GameLobby"); });
+  ranges::transform (_users, ranges::back_inserter (result), [] (auto const &user) { return user->accountName.value_or ("Error User is not Logged  in but still in GameLobby"); });
   return result;
 }
 
@@ -74,7 +74,7 @@ GameLobby::tryToRemoveUser (std::string const &userWhoTriesToRemove, std::string
 {
   if (userWhoTriesToRemove == gameLobbyAdminAccountName () && userWhoTriesToRemove != userToRemoveName)
     {
-      if (auto userToRemoveFromLobby = std::ranges::find_if (_users, [&userToRemoveName] (auto const &user) { return userToRemoveName == user->accountName; }); userToRemoveFromLobby != _users.end ())
+      if (auto userToRemoveFromLobby = ranges::find_if (_users, [&userToRemoveName] (auto const &user) { return userToRemoveName == user->accountName; }); userToRemoveFromLobby != _users.end ())
         {
           _users.erase (userToRemoveFromLobby);
           return true;
@@ -106,7 +106,7 @@ GameLobby::hasPassword () const
 void
 GameLobby::sendToAllAccountsInGameLobby (std::string const &message)
 {
-  std::ranges::for_each (_users, [&message] (auto &user) { user->msgQueue.push_back (message); });
+  ranges::for_each (_users, [&message] (auto &user) { user->msgQueue.push_back (message); });
 }
 
 bool
@@ -124,7 +124,7 @@ GameLobby::accountCount ()
 void
 GameLobby::relogUser (std::shared_ptr<User> &user)
 {
-  if (auto oldLogin = std::ranges::find_if (_users, [accountName = user->accountName.value ()] (auto const &_user) { return accountName == _user->accountName.value (); }); oldLogin != _users.end ())
+  if (auto oldLogin = ranges::find_if (_users, [accountName = user->accountName.value ()] (auto const &_user) { return accountName == _user->accountName.value (); }); oldLogin != _users.end ())
     {
       *oldLogin = user;
     }
