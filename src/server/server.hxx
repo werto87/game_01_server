@@ -16,7 +16,7 @@
 class Server
 {
 public:
-  Server (boost::asio::io_context &io_context, boost::asio::thread_pool &pool);
+  Server (boost::asio::io_context &io_context, boost::asio::thread_pool &pool, boost::asio::ip::tcp::endpoint const &endpoint);
 
   boost::asio::awaitable<void> listener ();
 
@@ -30,10 +30,10 @@ private:
 
   boost::asio::io_context &_io_context;
   boost::asio::thread_pool &_pool;
+  boost::asio::ip::tcp::endpoint _endpoint{};
   std::list<boost::beast::websocket::stream<boost::beast::tcp_stream>> connections{};
   std::list<std::shared_ptr<User>> users{};
   std::list<GameLobby> gameLobbys{};
-  // TODO use state machine instead of game
   std::list<GameMachine> games{};
 };
 

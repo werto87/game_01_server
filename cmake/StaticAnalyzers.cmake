@@ -1,5 +1,5 @@
-option(ENABLE_CPPCHECK "Enable static analysis with cppcheck" ON) #does not work with c++20 features
-option(ENABLE_CLANG_TIDY "Enable static analysis with clang-tidy" OFF) #does not work with c++20 features and precompiled headers together
+option(ENABLE_CPPCHECK "Enable static analysis with cppcheck" OFF) 
+option(ENABLE_CLANG_TIDY "Enable static analysis with clang-tidy" OFF) 
 option(ENABLE_INCLUDE_WHAT_YOU_USE "Enable static analysis with include-what-you-use" OFF)
 
 if(ENABLE_CPPCHECK)
@@ -27,7 +27,7 @@ if(ENABLE_CLANG_TIDY)
   find_program(CLANGTIDY clang-tidy)
   if(CLANGTIDY)
           message("found clang-tidy")
-    set(CMAKE_CXX_CLANG_TIDY ${CLANGTIDY} -extra-arg=-Wno-unknown-warning-option)
+    set(CMAKE_CXX_CLANG_TIDY ${CLANGTIDY}  -checks=-*,cppcoreguidelines-* )
   else()
     message(SEND_ERROR "clang-tidy requested but executable not found")
   

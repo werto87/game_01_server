@@ -38,7 +38,7 @@ include(cmake/Sanitizers.cmake)
 enable_sanitizers(${PROJECT_OPTIONS})
 
 #allow for static analysis options
-#include(cmake/StaticAnalyzers.cmake) 
+include(cmake/StaticAnalyzers.cmake) 
 
  
 ######## conan setup

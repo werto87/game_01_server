@@ -36,7 +36,7 @@
 using namespace boost::beast;
 using namespace boost::asio;
 
-Server::Server (boost::asio::io_context &io_context, boost::asio::thread_pool &pool) : _io_context{ io_context }, _pool{ pool } {}
+Server::Server (boost::asio::io_context &io_context, boost::asio::thread_pool &pool, boost::asio::ip::tcp::endpoint const &endpoint) : _io_context{ io_context }, _pool{ pool }, _endpoint{ endpoint } {}
 
 awaitable<std::string>
 Server::my_read (websocket::stream<tcp_stream> &ws_)
@@ -100,8 +100,8 @@ Server::writeToClient (std::shared_ptr<User> user, boost::beast::websocket::stre
       for (;;)
         {
           auto timer = steady_timer (co_await this_coro::executor);
-          using namespace std::chrono_literals;
-          timer.expires_after (10ms);
+          auto const waitForNewMessagesToSend = std::chrono::milliseconds{ 10 };
+          timer.expires_after (waitForNewMessagesToSend);
           co_await timer.async_wait (use_awaitable);
           while (not user->msgQueue.empty ())
             {
@@ -122,7 +122,7 @@ awaitable<void>
 Server::listener ()
 {
   auto executor = co_await this_coro::executor;
-  ip::tcp::acceptor acceptor (executor, { ip::tcp::v4 (), 55555 });
+  ip::tcp::acceptor acceptor (executor, _endpoint);
   for (;;)
     {
       ip::tcp::socket socket = co_await acceptor.async_accept (use_awaitable);
