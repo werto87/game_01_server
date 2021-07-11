@@ -25,7 +25,7 @@ main (int argc, char *argv[])
     }
   else
     {
-      port = boost::lexical_cast<unsigned short> (argv[1]);
+      port = boost::lexical_cast<u_int16_t> (argv[1]);
     }
   try
     {
