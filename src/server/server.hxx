@@ -3,7 +3,6 @@
 
 #include "src/database/database.hxx"
 #include "src/game/logic/gameMachine.hxx"
-#include "src/server/game.hxx"
 #include "src/server/gameLobby.hxx"
 #include "src/server/user.hxx"
 #include <boost/asio.hpp>
