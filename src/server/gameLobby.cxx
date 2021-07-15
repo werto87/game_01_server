@@ -106,6 +106,8 @@ GameLobby::hasPassword () const
 void
 GameLobby::sendToAllAccountsInGameLobby (std::string const &message)
 {
+  // TODO do not push messages in a queue with offline user
+  // if user is offline but in lobby user message queue gets filled but the messages get never send because of GameLobby::relogUser() overrides user with another user before the messages gets send. This is fine but we still push messages in a queue and override it later
   ranges::for_each (_users, [&message] (auto &user) { user->msgQueue.push_back (message); });
 }
 

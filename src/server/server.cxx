@@ -50,7 +50,7 @@ Server::my_read (websocket::stream<tcp_stream> &ws_)
 }
 
 awaitable<void>
-Server::readFromClient (std::list<std::shared_ptr<User>>::iterator user, std::list<boost::beast::websocket::stream<boost::beast::tcp_stream>>::iterator connection)
+Server::readFromClient (std::list<std::shared_ptr<User>>::iterator user, boost::beast::websocket::stream<boost::beast::tcp_stream> &connection)
 {
   try
     {
@@ -60,7 +60,7 @@ Server::readFromClient (std::list<std::shared_ptr<User>>::iterator user, std::li
           // using namespace std::chrono_literals;
           // timer.expires_after (10s);
           // co_await timer.async_wait (use_awaitable);
-          auto readResult = co_await my_read (*connection);
+          auto readResult = co_await my_read (connection);
           auto result = co_await handleMessage (readResult, _io_context, _pool, users, *user, gameLobbys, games);
           user->get ()->msgQueue.insert (user->get ()->msgQueue.end (), make_move_iterator (result.begin ()), make_move_iterator (result.end ()));
         }
@@ -68,28 +68,19 @@ Server::readFromClient (std::list<std::shared_ptr<User>>::iterator user, std::li
   catch (std::exception &e)
     {
       std::cout << "echo  Exception: " << e.what () << std::endl;
-      removeUser (user, connection);
+      removeUser (user);
     }
 }
 
 void
-Server::removeUser (std::list<std::shared_ptr<User>>::iterator user, std::list<boost::beast::websocket::stream<boost::beast::tcp_stream>>::iterator connection)
+Server::removeUser (std::list<std::shared_ptr<User>>::iterator user)
 {
-  try
-    {
-      connection->close ("lost connection to user");
-    }
-  catch (std::exception &e)
-    {
-      std::cout << "echo  Exception: " << e.what () << std::endl;
-    }
   // user will still be in create game lobby or game so we reset everything expect user->accountName to enable relog to gamelobby or game
   user->get ()->communicationChannels.clear ();
   user->get ()->ignoreLogin = false;
   user->get ()->ignoreCreateAccount = false;
   user->get ()->msgQueue.clear ();
   users.erase (user);
-  connections.erase (connection);
 }
 
 awaitable<void>
@@ -126,16 +117,15 @@ Server::listener ()
   for (;;)
     {
       ip::tcp::socket socket = co_await acceptor.async_accept (use_awaitable);
-      connections.emplace_back (boost::beast::websocket::stream<boost::beast::tcp_stream>{ std::move (socket) });
-      std::list<boost::beast::websocket::stream<boost::beast::tcp_stream>>::iterator connection = std::next (connections.end (), -1);
+      auto connection = std::make_shared<boost::beast::websocket::stream<boost::beast::tcp_stream>> (std::move (socket));
       users.emplace_back (std::make_shared<User> (User{ {}, {}, {} }));
       std::list<std::shared_ptr<User>>::iterator user = std::next (users.end (), -1);
       connection->set_option (websocket::stream_base::timeout::suggested (role_type::server));
       connection->set_option (websocket::stream_base::decorator ([] (websocket::response_type &res) { res.set (http::field::server, std::string (BOOST_BEAST_VERSION_STRING) + " websocket-server-async"); }));
       co_await connection->async_accept (use_awaitable);
       co_spawn (
-          executor, [&] () mutable { return readFromClient (user, connection); }, detached);
+          executor, [connection, this, &user] () mutable { return readFromClient (user, *connection); }, detached);
       co_spawn (
-          executor, [&] () mutable { return writeToClient (*user, *connection); }, detached);
+          executor, [connection, this, &user] () mutable { return writeToClient (*user, *connection); }, detached);
     }
 }

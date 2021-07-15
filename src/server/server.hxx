@@ -21,17 +21,16 @@ public:
   boost::asio::awaitable<void> listener ();
 
 private:
-  void removeUser (std::list<std::shared_ptr<User>>::iterator user, std::list<boost::beast::websocket::stream<boost::beast::tcp_stream>>::iterator connection);
+  void removeUser (std::list<std::shared_ptr<User>>::iterator user);
   boost::asio::awaitable<std::string> my_read (boost::beast::websocket::stream<boost::beast::tcp_stream> &ws_);
 
-  boost::asio::awaitable<void> readFromClient (std::list<std::shared_ptr<User>>::iterator user, std::list<boost::beast::websocket::stream<boost::beast::tcp_stream>>::iterator connection);
+  boost::asio::awaitable<void> readFromClient (std::list<std::shared_ptr<User>>::iterator user, boost::beast::websocket::stream<boost::beast::tcp_stream> &connection);
 
   boost::asio::awaitable<void> writeToClient (std::shared_ptr<User> user, boost::beast::websocket::stream<boost::beast::tcp_stream> &connection);
 
   boost::asio::io_context &_io_context;
   boost::asio::thread_pool &_pool;
   boost::asio::ip::tcp::endpoint _endpoint{};
-  std::list<boost::beast::websocket::stream<boost::beast::tcp_stream>> connections{};
   std::list<std::shared_ptr<User>> users{};
   std::list<GameLobby> gameLobbys{};
   std::list<GameMachine> games{};
