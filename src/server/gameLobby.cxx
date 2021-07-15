@@ -112,7 +112,8 @@ GameLobby::sendToAllAccountsInGameLobby (std::string const &message)
 bool
 GameLobby::removeUser (std::shared_ptr<User> const &user)
 {
-  return _users.erase (std::remove_if (_users.begin (), _users.end (), [accountName = user->accountName.value ()] (auto const &_user) { return accountName == _user->accountName.value (); }), _users.end ()) != _users.end ();
+  _users.erase (std::remove_if (_users.begin (), _users.end (), [accountName = user->accountName.value ()] (auto const &_user) { return accountName == _user->accountName.value (); }), _users.end ());
+  return _users.empty ();
 }
 
 size_t

@@ -236,21 +236,28 @@ auto const setAttackPass = [] (attackPass const &attackPassEv, PassAttackAndAssi
     {
       auto &sendingUserMsgQueue = userItr->get ()->msgQueue;
       auto playerRole = game.getRoleForName (attackPassEv.playerName);
-      if (game.countOfNotBeatenCardsOnTable () == 0)
+      if (game.getAttackStarted ())
         {
-          if (playerRole == durak::PlayerRole::attack)
+          if (game.countOfNotBeatenCardsOnTable () == 0)
             {
-              passAttackAndAssist.attack = true;
-              sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAttackPassSuccess{}));
+              if (playerRole == durak::PlayerRole::attack)
+                {
+                  passAttackAndAssist.attack = true;
+                  sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAttackPassSuccess{}));
+                }
+              else
+                {
+                  sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAttackPassError{ "account role is not attack: " + attackPassEv.playerName }));
+                }
             }
           else
             {
-              sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAttackPassError{ "account role is not attack: " + attackPassEv.playerName }));
+              sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAttackPassError{ "there are not beaten cards on the table" }));
             }
         }
       else
         {
-          sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAttackPassError{ "there are not beaten cards on the table" }));
+          sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAttackPassError{ "can not pass if attack is not started" }));
         }
     }
 };
@@ -260,21 +267,28 @@ auto const setAssistPass = [] (assistPass const &assistPassEv, PassAttackAndAssi
     {
       auto &sendingUserMsgQueue = userItr->get ()->msgQueue;
       auto playerRole = game.getRoleForName (assistPassEv.playerName);
-      if (game.countOfNotBeatenCardsOnTable () == 0)
+      if (game.getAttackStarted ())
         {
-          if (playerRole == durak::PlayerRole::assistAttacker)
+          if (game.countOfNotBeatenCardsOnTable () == 0)
             {
-              passAttackAndAssist.assist = true;
-              sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAssistPassSuccess{}));
+              if (playerRole == durak::PlayerRole::assistAttacker)
+                {
+                  passAttackAndAssist.assist = true;
+                  sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAssistPassSuccess{}));
+                }
+              else
+                {
+                  sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAssistPassError{ "account role is not assist: " + assistPassEv.playerName }));
+                }
             }
           else
             {
-              sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAssistPassError{ "account role is not assist: " + assistPassEv.playerName }));
+              sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAssistPassError{ "there are not beaten cards on the table" }));
             }
         }
       else
         {
-          sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAssistPassError{ "there are not beaten cards on the table" }));
+          sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAssistPassError{ "can not pass if attack is not started" }));
         }
     }
 };
