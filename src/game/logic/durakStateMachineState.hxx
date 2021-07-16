@@ -87,5 +87,17 @@ struct leaveGame
 {
   std::string accountName{};
 };
+struct defendRelog
+{
+};
+struct attackRelog
+{
+};
+struct assistRelog
+{
+};
+struct waitingRelog
+{
+};
 
 #endif /* A30C538C_58C3_49A5_8853_24519FACCE71 */

@@ -429,6 +429,81 @@ auto const doDefend = [] (defend const &defendEv, durak::Game &game, std::vector
     }
 };
 
+auto const askAttackAgain = [] (PassAttackAndAssist &passAttackAndAssist, durak::Game &game, std::vector<std::shared_ptr<User>> &users) {
+  if (auto attackingPlayer = game.getAttackingPlayer (); not passAttackAndAssist.attack && attackingPlayer && not attackingPlayer->getCards ().empty ())
+    {
+      if (auto player = ranges::find_if (users, [&attackingPlayer] (std::shared_ptr<User> const &user) { return user->accountName.value () == attackingPlayer->id; }); player != users.end ())
+        {
+          player->get ()->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendWantsToTakeCardsFromTableDoYouWantToAddCards{}));
+        }
+    }
+  else
+    {
+      passAttackAndAssist.attack = true;
+    }
+  if (auto assistingPlayer = game.getAssistingPlayer (); not(assistingPlayer && not assistingPlayer->getCards ().empty ()))
+    {
+      passAttackAndAssist.assist = true;
+    }
+  if (passAttackAndAssist.assist && passAttackAndAssist.attack)
+    {
+      game.nextRound (true);
+      sendGameDataToAccountsInGame (game, users);
+      if (game.checkIfGameIsOver ())
+        {
+          if (auto durak = game.durak ())
+            {
+              ranges::for_each (users, [durak = durak->id] (std::shared_ptr<User> const &user) {
+                if (user->accountName == durak) user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverLose{}));
+                else
+                  user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverWon{}));
+              });
+            }
+          else
+            {
+              ranges::for_each (users, [] (std::shared_ptr<User> const &user) { user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverDraw{})); });
+            }
+        }
+    }
+};
+auto const askAssistAgain = [] (PassAttackAndAssist &passAttackAndAssist, durak::Game &game, std::vector<std::shared_ptr<User>> &users) {
+  if (auto attackingPlayer = game.getAttackingPlayer (); not(attackingPlayer && not attackingPlayer->getCards ().empty ()))
+    {
+      passAttackAndAssist.attack = true;
+    }
+  if (auto assistingPlayer = game.getAssistingPlayer (); assistingPlayer && not assistingPlayer->getCards ().empty ())
+    {
+      if (auto player = ranges::find_if (users, [&assistingPlayer] (std::shared_ptr<User> const &user) { return user->accountName.value () == assistingPlayer->id; }); player != users.end ())
+        {
+          player->get ()->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendWantsToTakeCardsFromTableDoYouWantToAddCards{}));
+        }
+    }
+  else
+    {
+      passAttackAndAssist.assist = true;
+    }
+  if (passAttackAndAssist.assist && passAttackAndAssist.attack)
+    {
+      game.nextRound (true);
+      sendGameDataToAccountsInGame (game, users);
+      if (game.checkIfGameIsOver ())
+        {
+          if (auto durak = game.durak ())
+            {
+              ranges::for_each (users, [durak = durak->id] (std::shared_ptr<User> const &user) {
+                if (user->accountName == durak) user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverLose{}));
+                else
+                  user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverWon{}));
+              });
+            }
+          else
+            {
+              ranges::for_each (users, [] (std::shared_ptr<User> const &user) { user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverDraw{})); });
+            }
+        }
+    }
+};
+
 struct PassMachine
 {
   auto
@@ -450,14 +525,17 @@ struct PassMachine
 , state<AskDef>                 + on_entry<_>                                             / startAskDef
 , state<AskDef>                 + event<defendAnswerYes>                                                                                = state<AskAttackAndAssist>
 , state<AskDef>                 + event<defendAnswerNo>                                   / handleDefendSuccess                         = state<Chill>
+, state<AskDef>                 + event<defendRelog>                                      / startAskDef
 /*--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/      
 , state<AskAttackAndAssist>     + on_entry<_>                                             / startAskAttackAndAssist
 , state<AskAttackAndAssist>     + event<attackPass>                                       /(setAttackAnswer,checkAttackAndAssistAnswer)
 , state<AskAttackAndAssist>     + event<assistPass>                                       /(setAssistAnswer,checkAttackAndAssistAnswer)
 , state<AskAttackAndAssist>     + event<attack>                                           / doAttack 
 , state<AskAttackAndAssist>     + event<chill>                                                                                          =state<Chill>
+, state<AskAttackAndAssist>     + event<attackRelog>                                      / askAttackAgain
+, state<AskAttackAndAssist>     + event<assistRelog>                                      / askAssistAgain
 /*--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/      
-,*"leaveGameHAndler"_s          + event<leaveGame>                                        / userLeftGame                                
+,*"leaveGameHandler"_s          + event<leaveGame>                                        / userLeftGame                                
 // clang-format on   
     );
   }

@@ -581,34 +581,43 @@ relogTo (std::string const &objectAsString, std::shared_ptr<User> user, std::lis
     {
       if (relogToObject.wantsToRelog)
         {
-          // TODO send things to client so client shows game
-          // gameLobbyWithAc count->relogUser (user);
-          // gameWithUser
+          gameWithUser->relogUser (user);
           user->msgQueue.push_back (objectToStringWithObjectName (shared_class::RelogToGameSuccess{}));
-          // auto usersInGameLobby = shared_class::UsersInGameLobby{};
-          // usersInGameLobby.maxUserSize = gameLobbyWithAccount->maxUserCount ();
-          // usersInGameLobby.name = gameLobbyWithAccount->gameLobbyName ();
-          // usersInGameLobby.durakGameOption.maxCardValue = gameLobbyWithAccount->gameOption.maxCardValue;
-          // ranges::transform (gameLobbyWithAccount->accountNames (), ranges::back_inserter (usersInGameLobby.users), [] (auto const &accountName) { return shared_class::UserInGameLobby{ accountName }; });
+
+          auto gameData = gameWithUser->getGame ().getGameData ();
+          if (auto playerRelog = ranges::find_if (gameData.players, [accountName = user->accountName.value ()] (auto const &player) { return player.name == accountName; }); playerRelog != gameData.players.end ())
+            {
+              ranges::sort (playerRelog->cards, [] (auto const &card1, auto const &card2) { return card1.value () < card2.value (); });
+              user->msgQueue.push_back (objectToStringWithObjectName (filterGameDataByAccountName (gameData, user->accountName.value ())));
+            }
+          auto playerRole = gameWithUser->getGame ().getRoleForName (user->accountName.value ());
+          switch (playerRole)
+            {
+            case durak::PlayerRole::attack:
+              {
+                gameWithUser->durakStateMachine.process_event (attackRelog{});
+                break;
+              }
+            case durak::PlayerRole::defend:
+              {
+                gameWithUser->durakStateMachine.process_event (defendRelog{});
+                break;
+              }
+            case durak::PlayerRole::assistAttacker:
+              {
+                gameWithUser->durakStateMachine.process_event (assistRelog{});
+                break;
+              }
+            case durak::PlayerRole::waiting:
+              {
+                gameWithUser->durakStateMachine.process_event (waitingRelog{});
+                break;
+              }
+            }
         }
       else
         {
-          // TODO remove user from game
-          // gameLobbyWithAccount->removeUser (user);
-          // if (gameLobbyWithAccount->accountCount () == 0)
-          //   {
-          //     gameLobbys.erase (gameLobbyWithAccount);
-          //   }
-          // else
-          //   {
-          //     auto usersInGameLobby = shared_class::UsersInGameLobby{};
-          //     usersInGameLobby.maxUserSize = gameLobbyWithAccount->maxUserCount ();
-          //     usersInGameLobby.name = gameLobbyWithAccount->gameLobbyName ();
-          //     usersInGameLobby.durakGameOption.maxCardValue = gameLobbyWithAccount->gameOption.maxCardValue;
-          //     ranges::transform (gameLobbyWithAccount->accountNames (), ranges::back_inserter (usersInGameLobby.users), [] (auto const &accountName) { return shared_class::UserInGameLobby{ accountName }; });
-          //     gameLobbyWithAccount->sendToAllAccountsInGameLobby (objectToStringWithObjectName (usersInGameLobby));
-          //     return {};
-          //   }
+          gameWithUser->durakStateMachine.process_event (leaveGame{ user->accountName.value () });
         }
     }
   else if (relogToObject.wantsToRelog)

@@ -23,6 +23,19 @@ struct GameMachine
     return _game;
   }
 
+  void
+  relogUser (std::shared_ptr<User> &user)
+  {
+    if (auto oldLogin = ranges::find_if (_users, [accountName = user->accountName.value ()] (auto const &_user) { return accountName == _user->accountName.value (); }); oldLogin != _users.end ())
+      {
+        *oldLogin = user;
+      }
+    else
+      {
+        throw std::logic_error{ "can not relog user beacuse he is not logged in the game" };
+      }
+  }
+
   std::vector<std::shared_ptr<User>> const &
   getUsers () const
   {
