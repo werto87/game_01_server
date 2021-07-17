@@ -145,7 +145,7 @@ handleMessage (std::string const &msg, boost::asio::io_context &io_context, boos
         }
       else if (typeToSearch == "CreateGame")
         {
-          createGame (user, gameLobbys, gameMachines);
+          createGame (user, gameLobbys, gameMachines, io_context);
         }
       else if (typeToSearch == "DurakAttack")
         {
@@ -249,7 +249,7 @@ loginAccount (std::string objectAsString, boost::asio::io_context &io_context, s
                   else if (auto gameWithUser = ranges::find_if (gameMachines,
                                                                 [accountName = user->accountName] (auto const &gameMachine) {
                                                                   auto accountNames = std::vector<std::string>{};
-                                                                  ranges::transform (gameMachine.getUsers (), ranges::back_inserter (accountNames), [] (auto const &user) { return user->accountName.value (); });
+                                                                  ranges::transform (gameMachine.getUsers (), ranges::back_inserter (accountNames), [] (auto const &gameUser) { return gameUser._user->accountName.value (); });
                                                                   return ranges::find_if (accountNames, [&accountName] (auto const &nameToCheck) { return nameToCheck == accountName; }) != accountNames.end ();
                                                                 });
                            gameWithUser != gameMachines.end ())
@@ -342,7 +342,7 @@ leaveChannel (std::string const &objectAsString, User &user)
 }
 
 void
-createGame (std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys, std::list<GameMachine> &gameMachines)
+createGame (std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys, std::list<GameMachine> &gameMachines, boost::asio::io_context &io_context)
 {
   if (auto gameLobbyWithUser = ranges::find_if (gameLobbys,
                                                 [accountName = user->accountName] (auto const &gameLobby) {
@@ -357,8 +357,8 @@ createGame (std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys, std::l
           auto names = std::vector<std::string>{};
           ranges::transform (gameLobbyWithUser->_users, ranges::back_inserter (names), [] (auto const &tempUser) { return tempUser->accountName.value (); });
           auto game = durak::Game{ std::move (names), gameLobbyWithUser->gameOption };
-          auto &gameMachine = gameMachines.emplace_back (game, gameLobbyWithUser->_users);
-          sendGameDataToAccountsInGame (gameMachine.getGame (), gameLobbyWithUser->_users);
+          auto &gameMachine = gameMachines.emplace_back (game, gameLobbyWithUser->_users, io_context);
+          sendGameDataToAccountsInGame (gameMachine.getGame (), gameMachine.getUsers ());
           gameLobbys.erase (gameLobbyWithUser);
         }
       else
@@ -574,7 +574,7 @@ relogTo (std::string const &objectAsString, std::shared_ptr<User> user, std::lis
   else if (auto gameWithUser = ranges::find_if (gameMachines,
                                                 [accountName = user->accountName] (auto const &gameMachine) {
                                                   auto accountNames = std::vector<std::string>{};
-                                                  ranges::transform (gameMachine.getUsers (), ranges::back_inserter (accountNames), [] (auto const &user) { return user->accountName.value (); });
+                                                  ranges::transform (gameMachine.getUsers (), ranges::back_inserter (accountNames), [] (auto const &gameUser) { return gameUser._user->accountName.value (); });
                                                   return ranges::find_if (accountNames, [&accountName] (auto const &nameToCheck) { return nameToCheck == accountName; }) != accountNames.end ();
                                                 });
            gameWithUser != gameMachines.end ())
@@ -631,7 +631,7 @@ void
 durakAttack (std::string const &objectAsString, std::shared_ptr<User> user, std::list<GameMachine> &gameMachines)
 {
   auto durakAttackObject = stringToObject<shared_class::DurakAttack> (objectAsString);
-  if (auto gameMachine = ranges::find_if (gameMachines, [accountName = user->accountName.value ()] (GameMachine const &_game) { return ranges::find_if (_game.getUsers (), [&accountName] (auto const &_user) { return _user->accountName.value () == accountName; }) != _game.getUsers ().end (); }); gameMachine != gameMachines.end ())
+  if (auto gameMachine = ranges::find_if (gameMachines, [accountName = user->accountName.value ()] (GameMachine const &_game) { return ranges::find_if (_game.getUsers (), [&accountName] (auto const &gameUser) { return gameUser._user->accountName.value () == accountName; }) != _game.getUsers ().end (); }); gameMachine != gameMachines.end ())
     {
       gameMachine->durakStateMachine.process_event (attack{ .playerName = user->accountName.value (), .cards{ std::move (durakAttackObject.cards) } });
     }
@@ -645,7 +645,7 @@ void
 durakDefend (std::string const &objectAsString, std::shared_ptr<User> user, std::list<GameMachine> &gameMachines)
 {
   auto durakDefendObject = stringToObject<shared_class::DurakDefend> (objectAsString);
-  if (auto gameMachine = ranges::find_if (gameMachines, [accountName = user->accountName.value ()] (GameMachine const &_game) { return ranges::find_if (_game.getUsers (), [&accountName] (auto const &_user) { return _user->accountName.value () == accountName; }) != _game.getUsers ().end (); }); gameMachine != gameMachines.end ())
+  if (auto gameMachine = ranges::find_if (gameMachines, [accountName = user->accountName.value ()] (GameMachine const &_game) { return ranges::find_if (_game.getUsers (), [&accountName] (auto const &gameUser) { return gameUser._user->accountName.value () == accountName; }) != _game.getUsers ().end (); }); gameMachine != gameMachines.end ())
     {
       gameMachine->durakStateMachine.process_event (defend{ .playerName = user->accountName.value (), .cardToBeat{ durakDefendObject.cardToBeat }, .card{ durakDefendObject.card } });
     }
@@ -658,7 +658,7 @@ durakDefend (std::string const &objectAsString, std::shared_ptr<User> user, std:
 void
 durakAttackPass (std::shared_ptr<User> user, std::list<GameMachine> &gameMachines)
 {
-  if (auto gameMachine = ranges::find_if (gameMachines, [accountName = user->accountName.value ()] (GameMachine const &_game) { return ranges::find_if (_game.getUsers (), [&accountName] (auto const &_user) { return _user->accountName.value () == accountName; }) != _game.getUsers ().end (); }); gameMachine != gameMachines.end ())
+  if (auto gameMachine = ranges::find_if (gameMachines, [accountName = user->accountName.value ()] (GameMachine const &_game) { return ranges::find_if (_game.getUsers (), [&accountName] (auto const &gameUser) { return gameUser._user->accountName.value () == accountName; }) != _game.getUsers ().end (); }); gameMachine != gameMachines.end ())
     {
       gameMachine->durakStateMachine.process_event (attackPass{ .playerName = user->accountName.value () });
     }
@@ -671,7 +671,7 @@ durakAttackPass (std::shared_ptr<User> user, std::list<GameMachine> &gameMachine
 void
 durakAssistPass (std::shared_ptr<User> user, std::list<GameMachine> &gameMachines)
 {
-  if (auto gameMachine = ranges::find_if (gameMachines, [accountName = user->accountName.value ()] (GameMachine const &_game) { return ranges::find_if (_game.getUsers (), [&accountName] (auto const &_user) { return _user->accountName.value () == accountName; }) != _game.getUsers ().end (); }); gameMachine != gameMachines.end ())
+  if (auto gameMachine = ranges::find_if (gameMachines, [accountName = user->accountName.value ()] (GameMachine const &_game) { return ranges::find_if (_game.getUsers (), [&accountName] (auto const &gameUser) { return gameUser._user->accountName.value () == accountName; }) != _game.getUsers ().end (); }); gameMachine != gameMachines.end ())
     {
       gameMachine->durakStateMachine.process_event (assistPass{ .playerName = user->accountName.value () });
     }
@@ -685,7 +685,7 @@ void
 durakAskDefendWantToTakeCardsAnswer (std::string const &objectAsString, std::shared_ptr<User> user, std::list<GameMachine> &gameMachines)
 {
   auto durakAskDefendWantToTakeCardsAnswerObject = stringToObject<shared_class::DurakAskDefendWantToTakeCardsAnswer> (objectAsString);
-  if (auto gameMachine = ranges::find_if (gameMachines, [accountName = user->accountName.value ()] (GameMachine const &_game) { return ranges::find_if (_game.getUsers (), [&accountName] (auto const &_user) { return _user->accountName.value () == accountName; }) != _game.getUsers ().end (); }); gameMachine != gameMachines.end ())
+  if (auto gameMachine = ranges::find_if (gameMachines, [accountName = user->accountName.value ()] (GameMachine const &_game) { return ranges::find_if (_game.getUsers (), [&accountName] (auto const &gameUser) { return gameUser._user->accountName.value () == accountName; }) != _game.getUsers ().end (); }); gameMachine != gameMachines.end ())
     {
       if (durakAskDefendWantToTakeCardsAnswerObject.answer)
         {
@@ -722,7 +722,7 @@ createAccountCancel (std::shared_ptr<User> user)
 void
 durakDefendPass (std::shared_ptr<User> user, std::list<GameMachine> &gameMachines)
 {
-  if (auto gameMachine = ranges::find_if (gameMachines, [accountName = user->accountName.value ()] (GameMachine const &_game) { return ranges::find_if (_game.getUsers (), [&accountName] (auto const &_user) { return _user->accountName.value () == accountName; }) != _game.getUsers ().end (); }); gameMachine != gameMachines.end ())
+  if (auto gameMachine = ranges::find_if (gameMachines, [accountName = user->accountName.value ()] (GameMachine const &_game) { return ranges::find_if (_game.getUsers (), [&accountName] (auto const &gameUser) { return gameUser._user->accountName.value () == accountName; }) != _game.getUsers ().end (); }); gameMachine != gameMachines.end ())
     {
       gameMachine->durakStateMachine.process_event (defendPass{ .playerName = user->accountName.value () });
     }
@@ -735,7 +735,7 @@ durakDefendPass (std::shared_ptr<User> user, std::list<GameMachine> &gameMachine
 void
 durakLeaveGame (std::shared_ptr<User> user, std::list<GameMachine> &gameMachines)
 {
-  if (auto gameMachine = ranges::find_if (gameMachines, [accountName = user->accountName.value ()] (GameMachine const &_game) { return ranges::find_if (_game.getUsers (), [&accountName] (auto const &_user) { return _user->accountName.value () == accountName; }) != _game.getUsers ().end (); }); gameMachine != gameMachines.end ())
+  if (auto gameMachine = ranges::find_if (gameMachines, [accountName = user->accountName.value ()] (GameMachine const &_game) { return ranges::find_if (_game.getUsers (), [&accountName] (auto const &gameUser) { return gameUser._user->accountName.value () == accountName; }) != _game.getUsers ().end (); }); gameMachine != gameMachines.end ())
     {
       gameMachine->durakStateMachine.process_event (leaveGame{ user->accountName.value () });
       if (gameMachine->getUsers ().empty ())

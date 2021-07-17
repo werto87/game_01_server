@@ -1,6 +1,7 @@
 #ifndef EBD66723_6B6F_4460_A3DE_00AEB1E6D6B1
 #define EBD66723_6B6F_4460_A3DE_00AEB1E6D6B1
 #include "confu_json/confu_json.hxx"
+#include "src/game/gameUser.hxx"
 #include "src/server/user.hxx"
 #include <durak/game.hxx>
 #include <durak/gameData.hxx>
@@ -34,6 +35,6 @@ stringToObject (std::string const &objectAsString)
 
 durak::GameData filterGameDataByAccountName (durak::GameData const &gameData, std::string const &accountName);
 
-void sendGameDataToAccountsInGame (durak::Game const &game, std::vector<std::shared_ptr<User>> &users);
+void sendGameDataToAccountsInGame (durak::Game const &game, std::vector<GameUser> const &_gameUsers);
 
 #endif /* EBD66723_6B6F_4460_A3DE_00AEB1E6D6B1 */

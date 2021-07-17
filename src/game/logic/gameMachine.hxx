@@ -1,6 +1,7 @@
 #ifndef CDC60584_086D_4538_8E80_2EE43DC1B49E
 #define CDC60584_086D_4538_8E80_2EE43DC1B49E
 #include "durak/game.hxx"
+#include "src/game/gameUser.hxx"
 #include "src/game/logic/durakStateMachine.hxx"
 #include <algorithm>
 #include <iterator>
@@ -8,14 +9,18 @@
 
 struct GameMachine
 {
-  explicit GameMachine (std::vector<std::shared_ptr<User>> users) : durakStateMachine{ my_logger{}, PassAttackAndAssist{}, _game, _users }, _users{ users }
+  GameMachine (std::vector<std::shared_ptr<User>> users, boost::asio::io_context &io_context) : durakStateMachine{ my_logger{}, PassAttackAndAssist{}, _game, _gameUsers }
   {
+    ranges::transform (users, ranges::back_inserter (_gameUsers), [&io_context] (auto const &user) { return GameUser{ user, std::make_shared<boost::asio::steady_timer> (io_context) }; });
     auto names = std::vector<std::string>{};
-    ranges::transform (_users, ranges::back_inserter (names), [] (auto const &tempUser) { return tempUser->accountName.value (); });
+    ranges::transform (_gameUsers, ranges::back_inserter (names), [] (auto const &gameUser) { return gameUser._user->accountName.value (); });
     _game = durak::Game{ std::move (names) };
   }
 
-  GameMachine (durak::Game const &game, std::vector<std::shared_ptr<User>> &users) : durakStateMachine{ my_logger{}, PassAttackAndAssist{}, _game, _users }, _game{ game }, _users{ users } {}
+  GameMachine (durak::Game const &game, std::vector<std::shared_ptr<User>> &users, boost::asio::io_context &io_context) : durakStateMachine{ my_logger{}, PassAttackAndAssist{}, _game, _gameUsers }, _game{ game }
+  {
+    ranges::transform (users, ranges::back_inserter (_gameUsers), [&io_context] (auto const &user) { return GameUser{ user, std::make_shared<boost::asio::steady_timer> (io_context) }; });
+  }
 
   durak::Game const &
   getGame () const
@@ -26,9 +31,9 @@ struct GameMachine
   void
   relogUser (std::shared_ptr<User> &user)
   {
-    if (auto oldLogin = ranges::find_if (_users, [accountName = user->accountName.value ()] (auto const &_user) { return accountName == _user->accountName.value (); }); oldLogin != _users.end ())
+    if (auto oldLogin = ranges::find_if (_gameUsers, [accountName = user->accountName.value ()] (auto const &gameUser) { return accountName == gameUser._user->accountName.value (); }); oldLogin != _gameUsers.end ())
       {
-        *oldLogin = user;
+        oldLogin->_user = user;
       }
     else
       {
@@ -36,17 +41,17 @@ struct GameMachine
       }
   }
 
-  std::vector<std::shared_ptr<User>> const &
+  std::vector<GameUser> const &
   getUsers () const
   {
-    return _users;
+    return _gameUsers;
   }
 
   DurakStateMachine durakStateMachine;
 
 private:
   durak::Game _game{};
-  std::vector<std::shared_ptr<User>> _users{};
+  std::vector<GameUser> _gameUsers;
 };
 
 #endif /* CDC60584_086D_4538_8E80_2EE43DC1B49E */

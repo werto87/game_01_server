@@ -2,6 +2,7 @@
 #define EDA48A4C_C02A_4C25_B6A5_0D0EF497AFC4
 #include "durak/game.hxx"
 #include "durak/gameData.hxx"
+#include "src/game/gameUser.hxx"
 #include "src/game/logic/durakStateMachineState.hxx"
 #include "src/server/user.hxx"
 #include "src/util.hxx"
@@ -13,6 +14,7 @@
 #include <queue>
 #include <range/v3/all.hpp>
 #include <vector>
+
 struct my_logger
 {
   template <class SM, class TEvent>
@@ -57,10 +59,10 @@ auto const isDefendingPlayer = [] (defend const &defendEv, durak::Game &game) { 
 
 auto const isDefendingPlayerAndHasCardsOnTable = [] (defend const &defendEv, durak::Game &game) { return game.getRoleForName (defendEv.playerName) == durak::PlayerRole::defend && game.getAttackStarted (); };
 
-auto const setAttackAnswer = [] (attackPass const &attackPassEv, PassAttackAndAssist &passAttackAndAssist, durak::Game &game, std::vector<std::shared_ptr<User>> &users) {
-  if (auto userItr = ranges::find_if (users, [accountName = attackPassEv.playerName] (std::shared_ptr<User> &user) { return user->accountName.value () == accountName; }); userItr != users.end ())
+auto const setAttackAnswer = [] (attackPass const &attackPassEv, PassAttackAndAssist &passAttackAndAssist, durak::Game &game, std::vector<GameUser> &_gameUsers) {
+  if (auto gameUserItr = ranges::find_if (_gameUsers, [accountName = attackPassEv.playerName] (auto const &gameUser) { return gameUser._user->accountName.value () == accountName; }); gameUserItr != _gameUsers.end ())
     {
-      auto &sendingUserMsgQueue = userItr->get ()->msgQueue;
+      auto &sendingUserMsgQueue = gameUserItr->_user->msgQueue;
       if (not passAttackAndAssist.attack)
         {
           if (game.getRoleForName (attackPassEv.playerName) == durak::PlayerRole::attack)
@@ -79,10 +81,10 @@ auto const setAttackAnswer = [] (attackPass const &attackPassEv, PassAttackAndAs
         }
     }
 };
-auto const setAssistAnswer = [] (assistPass const &assistPassEv, PassAttackAndAssist &passAttackAndAssist, durak::Game &game, std::vector<std::shared_ptr<User>> &users) {
-  if (auto userItr = ranges::find_if (users, [accountName = assistPassEv.playerName] (std::shared_ptr<User> &user) { return user->accountName.value () == accountName; }); userItr != users.end ())
+auto const setAssistAnswer = [] (assistPass const &assistPassEv, PassAttackAndAssist &passAttackAndAssist, durak::Game &game, std::vector<GameUser> &_gameUsers) {
+  if (auto gameUserItr = ranges::find_if (_gameUsers, [accountName = assistPassEv.playerName] (auto const &gameUser) { return gameUser._user->accountName.value () == accountName; }); gameUserItr != _gameUsers.end ())
     {
-      auto &sendingUserMsgQueue = userItr->get ()->msgQueue;
+      auto &sendingUserMsgQueue = gameUserItr->_user->msgQueue;
       if (not passAttackAndAssist.assist)
         {
           if (game.getRoleForName (assistPassEv.playerName) == durak::PlayerRole::assistAttacker)
@@ -117,7 +119,7 @@ auto const checkData = [] (PassAttackAndAssist &passAttackAndAssist, durak::Game
     }
 };
 
-auto const checkAttackAndAssistAnswer = [] (PassAttackAndAssist &passAttackAndAssist, durak::Game &game, std::vector<std::shared_ptr<User>> &users, boost::sml::back::process<chill> process_event) {
+auto const checkAttackAndAssistAnswer = [] (PassAttackAndAssist &passAttackAndAssist, durak::Game &game, std::vector<GameUser> &_gameUsers, boost::sml::back::process<chill> process_event) {
   if (auto attackingPlayer = game.getAttackingPlayer (); not attackingPlayer || attackingPlayer->getCards ().empty ())
     {
       passAttackAndAssist.attack = true;
@@ -129,38 +131,38 @@ auto const checkAttackAndAssistAnswer = [] (PassAttackAndAssist &passAttackAndAs
   if (passAttackAndAssist.attack && passAttackAndAssist.assist)
     {
       game.nextRound (true);
-      sendGameDataToAccountsInGame (game, users);
+      sendGameDataToAccountsInGame (game, _gameUsers);
       if (game.checkIfGameIsOver ())
         {
           if (auto durak = game.durak ())
             {
-              ranges::for_each (users, [durak = durak->id] (std::shared_ptr<User> const &user) {
-                if (user->accountName == durak) user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverLose{}));
+              ranges::for_each (_gameUsers, [durak = durak->id] (auto const &gameUser) {
+                if (gameUser._user->accountName == durak) gameUser._user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverLose{}));
                 else
-                  user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverWon{}));
+                  gameUser._user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverWon{}));
               });
             }
           else
             {
-              ranges::for_each (users, [] (std::shared_ptr<User> const &user) { user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverDraw{})); });
+              ranges::for_each (_gameUsers, [] (auto const &gameUser) { gameUser._user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverDraw{})); });
             }
         }
       process_event (chill{});
     }
 };
 
-auto const startAskDef = [] (durak::Game &game, std::vector<std::shared_ptr<User>> &users) {
+auto const startAskDef = [] (durak::Game &game, std::vector<GameUser> &_gameUsers) {
   if (auto defendingPlayer = game.getDefendingPlayer ())
     {
-      if (auto player = ranges::find_if (users, [&defendingPlayer] (std::shared_ptr<User> const &user) { return user->accountName.value () == defendingPlayer->id; }); player != users.end ())
+      if (auto gameUserItr = ranges::find_if (_gameUsers, [&defendingPlayer] (auto const &gameUser) { return gameUser._user->accountName.value () == defendingPlayer->id; }); gameUserItr != _gameUsers.end ())
         {
-          player->get ()->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAskDefendWantToTakeCards{}));
+          gameUserItr->_user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAskDefendWantToTakeCards{}));
         }
     }
 };
 
-auto const userLeftGame = [] (leaveGame const &leaveGameEv, durak::Game &game, std::vector<std::shared_ptr<User>> &users) {
-  if (auto userItr = ranges::find_if (users, [accountName = leaveGameEv.accountName] (std::shared_ptr<User> const &_user) { return _user->accountName == accountName; }); userItr != users.end ())
+auto const userLeftGame = [] (leaveGame const &leaveGameEv, durak::Game &game, std::vector<GameUser> &_gameUsers) {
+  if (auto gameUserItr = ranges::find_if (_gameUsers, [accountName = leaveGameEv.accountName] (auto const &gameUser) { return gameUser._user->accountName == accountName; }); gameUserItr != _gameUsers.end ())
     {
       if (not game.checkIfGameIsOver ())
         {
@@ -170,28 +172,28 @@ auto const userLeftGame = [] (leaveGame const &leaveGameEv, durak::Game &game, s
         {
           if (auto durak = game.durak ())
             {
-              ranges::for_each (users, [durak = durak->id] (std::shared_ptr<User> const &user) {
-                if (user->accountName == durak) user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverLose{}));
+              ranges::for_each (_gameUsers, [durak = durak->id] (auto const &gameUser) {
+                if (gameUser._user->accountName == durak) gameUser._user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverLose{}));
                 else
-                  user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverWon{}));
+                  gameUser._user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverWon{}));
               });
             }
           else
             {
-              ranges::for_each (users, [] (std::shared_ptr<User> const &user) { user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverDraw{})); });
+              ranges::for_each (_gameUsers, [] (auto const &gameUser) { gameUser._user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverDraw{})); });
             }
         }
-      users.erase (userItr);
+      _gameUsers.erase (gameUserItr);
     }
 };
 
-auto const startAskAttackAndAssist = [] (PassAttackAndAssist &passAttackAndAssist, durak::Game &game, std::vector<std::shared_ptr<User>> &users) {
+auto const startAskAttackAndAssist = [] (PassAttackAndAssist &passAttackAndAssist, durak::Game &game, std::vector<GameUser> &_gameUsers) {
   passAttackAndAssist = PassAttackAndAssist{};
   if (auto attackingPlayer = game.getAttackingPlayer (); attackingPlayer && not attackingPlayer->getCards ().empty ())
     {
-      if (auto player = ranges::find_if (users, [&attackingPlayer] (std::shared_ptr<User> const &user) { return user->accountName.value () == attackingPlayer->id; }); player != users.end ())
+      if (auto gameUserItr = ranges::find_if (_gameUsers, [&attackingPlayer] (auto const &gameUser) { return gameUser._user->accountName.value () == attackingPlayer->id; }); gameUserItr != _gameUsers.end ())
         {
-          player->get ()->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendWantsToTakeCardsFromTableDoYouWantToAddCards{}));
+          gameUserItr->_user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendWantsToTakeCardsFromTableDoYouWantToAddCards{}));
         }
     }
   else
@@ -200,9 +202,9 @@ auto const startAskAttackAndAssist = [] (PassAttackAndAssist &passAttackAndAssis
     }
   if (auto assistingPlayer = game.getAssistingPlayer (); assistingPlayer && not assistingPlayer->getCards ().empty ())
     {
-      if (auto player = ranges::find_if (users, [&assistingPlayer] (std::shared_ptr<User> const &user) { return user->accountName.value () == assistingPlayer->id; }); player != users.end ())
+      if (auto gameUserItr = ranges::find_if (_gameUsers, [&assistingPlayer] (auto const &gameUser) { return gameUser._user->accountName.value () == assistingPlayer->id; }); gameUserItr != _gameUsers.end ())
         {
-          player->get ()->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendWantsToTakeCardsFromTableDoYouWantToAddCards{}));
+          gameUserItr->_user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendWantsToTakeCardsFromTableDoYouWantToAddCards{}));
         }
     }
   else
@@ -212,29 +214,29 @@ auto const startAskAttackAndAssist = [] (PassAttackAndAssist &passAttackAndAssis
   if (passAttackAndAssist.assist && passAttackAndAssist.attack)
     {
       game.nextRound (true);
-      sendGameDataToAccountsInGame (game, users);
+      sendGameDataToAccountsInGame (game, _gameUsers);
       if (game.checkIfGameIsOver ())
         {
           if (auto durak = game.durak ())
             {
-              ranges::for_each (users, [durak = durak->id] (std::shared_ptr<User> const &user) {
-                if (user->accountName == durak) user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverLose{}));
+              ranges::for_each (_gameUsers, [durak = durak->id] (auto const &gameUser) {
+                if (gameUser._user->accountName == durak) gameUser._user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverLose{}));
                 else
-                  user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverWon{}));
+                  gameUser._user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverWon{}));
               });
             }
           else
             {
-              ranges::for_each (users, [] (std::shared_ptr<User> const &user) { user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverDraw{})); });
+              ranges::for_each (_gameUsers, [] (auto const &gameUser) { gameUser._user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverDraw{})); });
             }
         }
     }
 };
 
-auto const setAttackPass = [] (attackPass const &attackPassEv, PassAttackAndAssist &passAttackAndAssist, durak::Game &game, std::vector<std::shared_ptr<User>> &users) {
-  if (auto userItr = ranges::find_if (users, [accountName = attackPassEv.playerName] (std::shared_ptr<User> &user) { return user->accountName.value () == accountName; }); userItr != users.end ())
+auto const setAttackPass = [] (attackPass const &attackPassEv, PassAttackAndAssist &passAttackAndAssist, durak::Game &game, std::vector<GameUser> &_gameUsers) {
+  if (auto gameUserItr = ranges::find_if (_gameUsers, [accountName = attackPassEv.playerName] (auto const &gameUser) { return gameUser._user->accountName.value () == accountName; }); gameUserItr != _gameUsers.end ())
     {
-      auto &sendingUserMsgQueue = userItr->get ()->msgQueue;
+      auto &sendingUserMsgQueue = gameUserItr->_user->msgQueue;
       auto playerRole = game.getRoleForName (attackPassEv.playerName);
       if (game.getAttackStarted ())
         {
@@ -262,10 +264,10 @@ auto const setAttackPass = [] (attackPass const &attackPassEv, PassAttackAndAssi
     }
 };
 
-auto const setAssistPass = [] (assistPass const &assistPassEv, PassAttackAndAssist &passAttackAndAssist, durak::Game &game, std::vector<std::shared_ptr<User>> &users) {
-  if (auto userItr = ranges::find_if (users, [accountName = assistPassEv.playerName] (std::shared_ptr<User> &user) { return user->accountName.value () == accountName; }); userItr != users.end ())
+auto const setAssistPass = [] (assistPass const &assistPassEv, PassAttackAndAssist &passAttackAndAssist, durak::Game &game, std::vector<GameUser> &_gameUsers) {
+  if (auto gameUserItr = ranges::find_if (_gameUsers, [accountName = assistPassEv.playerName] (auto const &gameUser) { return gameUser._user->accountName.value () == accountName; }); gameUserItr != _gameUsers.end ())
     {
-      auto &sendingUserMsgQueue = userItr->get ()->msgQueue;
+      auto &sendingUserMsgQueue = gameUserItr->_user->msgQueue;
       auto playerRole = game.getRoleForName (assistPassEv.playerName);
       if (game.getAttackStarted ())
         {
@@ -293,10 +295,10 @@ auto const setAssistPass = [] (assistPass const &assistPassEv, PassAttackAndAssi
     }
 };
 
-auto const handleDefendSuccess = [] (defendAnswerNo const &defendAnswerNoEv, durak::Game &game, std::vector<std::shared_ptr<User>> &users) {
-  if (auto userItr = ranges::find_if (users, [accountName = defendAnswerNoEv.playerName] (std::shared_ptr<User> &user) { return user->accountName.value () == accountName; }); userItr != users.end ())
+auto const handleDefendSuccess = [] (defendAnswerNo const &defendAnswerNoEv, durak::Game &game, std::vector<GameUser> &_gameUsers) {
+  if (auto gameUserItr = ranges::find_if (_gameUsers, [accountName = defendAnswerNoEv.playerName] (auto const &gameUser) { return gameUser._user->accountName.value () == accountName; }); gameUserItr != _gameUsers.end ())
     {
-      auto &sendingUserMsgQueue = userItr->get ()->msgQueue;
+      auto &sendingUserMsgQueue = gameUserItr->_user->msgQueue;
       if (game.getRoleForName (defendAnswerNoEv.playerName) == durak::PlayerRole::defend)
         {
           game.nextRound (false);
@@ -304,19 +306,19 @@ auto const handleDefendSuccess = [] (defendAnswerNo const &defendAnswerNoEv, dur
             {
               if (auto durak = game.durak ())
                 {
-                  ranges::for_each (users, [durak = durak->id] (std::shared_ptr<User> const &user) {
-                    if (user->accountName == durak) user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverLose{}));
+                  ranges::for_each (_gameUsers, [durak = durak->id] (auto const &gameUser) {
+                    if (gameUser._user->accountName == durak) gameUser._user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverLose{}));
                     else
-                      user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverWon{}));
+                      gameUser._user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverWon{}));
                   });
                 }
               else
                 {
-                  ranges::for_each (users, [] (std::shared_ptr<User> const &user) { user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverDraw{})); });
+                  ranges::for_each (_gameUsers, [] (auto const &gameUser) { gameUser._user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverDraw{})); });
                 }
             }
           sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAskDefendWantToTakeCardsAnswerSuccess{}));
-          sendGameDataToAccountsInGame (game, users);
+          sendGameDataToAccountsInGame (game, _gameUsers);
         }
       else
         {
@@ -325,16 +327,16 @@ auto const handleDefendSuccess = [] (defendAnswerNo const &defendAnswerNoEv, dur
     }
 };
 
-auto const handleDefendPass = [] (defendPass const &defendPassEv, durak::Game &game, std::vector<std::shared_ptr<User>> &users, boost::sml::back::process<askAttackAndAssist> process_event) {
-  if (auto userItr = ranges::find_if (users, [accountName = defendPassEv.playerName] (std::shared_ptr<User> &user) { return user->accountName.value () == accountName; }); userItr != users.end ())
+auto const handleDefendPass = [] (defendPass const &defendPassEv, durak::Game &game, std::vector<GameUser> &_gameUsers, boost::sml::back::process<askAttackAndAssist> process_event) {
+  if (auto gameUserItr = ranges::find_if (_gameUsers, [accountName = defendPassEv.playerName] (auto const &gameUser) { return gameUser._user->accountName.value () == accountName; }); gameUserItr != _gameUsers.end ())
     {
-      auto &sendingUserMsgQueue = userItr->get ()->msgQueue;
+      auto &sendingUserMsgQueue = gameUserItr->_user->msgQueue;
       if (game.getRoleForName (defendPassEv.playerName) == durak::PlayerRole::defend)
         {
           if (game.getAttackStarted ())
             {
               sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendPassSuccess{}));
-              sendGameDataToAccountsInGame (game, users);
+              sendGameDataToAccountsInGame (game, _gameUsers);
               process_event (askAttackAndAssist{});
             }
           else
@@ -356,10 +358,10 @@ auto const resetPassAttackAndAssist = [] (PassAttackAndAssist &passAttackAndAssi
 auto const setRewokePassAssist = [] (PassAttackAndAssist &passAttackAndAssist) { passAttackAndAssist.assist = false; };
 auto const setRewokePassAttack = [] (PassAttackAndAssist &passAttackAndAssist) { passAttackAndAssist.attack = false; };
 
-auto const doAttack = [] (PassAttackAndAssist &passAttackAndAssist, attack const &attackEv, durak::Game &game, std::vector<std::shared_ptr<User>> &users) {
-  if (auto userItr = ranges::find_if (users, [accountName = attackEv.playerName] (std::shared_ptr<User> &user) { return user->accountName.value () == accountName; }); userItr != users.end ())
+auto const doAttack = [] (PassAttackAndAssist &passAttackAndAssist, attack const &attackEv, durak::Game &game, std::vector<GameUser> &_gameUsers) {
+  if (auto gameUserItr = ranges::find_if (_gameUsers, [accountName = attackEv.playerName] (auto const &gameUser) { return gameUser._user->accountName.value () == accountName; }); gameUserItr != _gameUsers.end ())
     {
-      auto &sendingUserMsgQueue = userItr->get ()->msgQueue;
+      auto &sendingUserMsgQueue = gameUserItr->_user->msgQueue;
       auto playerRole = game.getRoleForName (attackEv.playerName);
       if (playerRole == durak::PlayerRole::attack)
         {
@@ -368,7 +370,7 @@ auto const doAttack = [] (PassAttackAndAssist &passAttackAndAssist, attack const
               if (game.playerAssists (playerRole, attackEv.cards))
                 {
                   sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAttackSuccess{}));
-                  sendGameDataToAccountsInGame (game, users);
+                  sendGameDataToAccountsInGame (game, _gameUsers);
                   passAttackAndAssist = PassAttackAndAssist{};
                 }
               else
@@ -381,7 +383,7 @@ auto const doAttack = [] (PassAttackAndAssist &passAttackAndAssist, attack const
               if (game.playerStartsAttack (attackEv.cards))
                 {
                   sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAttackSuccess{}));
-                  sendGameDataToAccountsInGame (game, users);
+                  sendGameDataToAccountsInGame (game, _gameUsers);
                   passAttackAndAssist = PassAttackAndAssist{};
                 }
               else
@@ -397,7 +399,7 @@ auto const doAttack = [] (PassAttackAndAssist &passAttackAndAssist, attack const
               if (game.playerAssists (playerRole, attackEv.cards))
                 {
                   sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAttackSuccess{}));
-                  sendGameDataToAccountsInGame (game, users);
+                  sendGameDataToAccountsInGame (game, _gameUsers);
                   passAttackAndAssist = PassAttackAndAssist{};
                 }
               else
@@ -409,17 +411,17 @@ auto const doAttack = [] (PassAttackAndAssist &passAttackAndAssist, attack const
     }
 };
 
-auto const doDefend = [] (defend const &defendEv, durak::Game &game, std::vector<std::shared_ptr<User>> &users) {
-  if (auto userItr = ranges::find_if (users, [accountName = defendEv.playerName] (std::shared_ptr<User> &user) { return user->accountName.value () == accountName; }); userItr != users.end ())
+auto const doDefend = [] (defend const &defendEv, durak::Game &game, std::vector<GameUser> &_gameUsers) {
+  if (auto gameUserItr = ranges::find_if (_gameUsers, [accountName = defendEv.playerName] (auto const &gameUser) { return gameUser._user->accountName.value () == accountName; }); gameUserItr != _gameUsers.end ())
     {
-      auto &sendingUserMsgQueue = userItr->get ()->msgQueue;
+      auto &sendingUserMsgQueue = gameUserItr->_user->msgQueue;
       auto playerRole = game.getRoleForName (defendEv.playerName);
       if (playerRole == durak::PlayerRole::defend)
         {
           if (game.playerDefends (defendEv.cardToBeat, defendEv.card))
             {
               sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendSuccess{}));
-              sendGameDataToAccountsInGame (game, users);
+              sendGameDataToAccountsInGame (game, _gameUsers);
             }
           else
             {
@@ -429,12 +431,12 @@ auto const doDefend = [] (defend const &defendEv, durak::Game &game, std::vector
     }
 };
 
-auto const askAttackAgain = [] (PassAttackAndAssist &passAttackAndAssist, durak::Game &game, std::vector<std::shared_ptr<User>> &users) {
+auto const askAttackAgain = [] (PassAttackAndAssist &passAttackAndAssist, durak::Game &game, std::vector<GameUser> &_gameUsers) {
   if (auto attackingPlayer = game.getAttackingPlayer (); not passAttackAndAssist.attack && attackingPlayer && not attackingPlayer->getCards ().empty ())
     {
-      if (auto player = ranges::find_if (users, [&attackingPlayer] (std::shared_ptr<User> const &user) { return user->accountName.value () == attackingPlayer->id; }); player != users.end ())
+      if (auto gameUserItr = ranges::find_if (_gameUsers, [&attackingPlayer] (auto const &gameUser) { return gameUser._user->accountName.value () == attackingPlayer->id; }); gameUserItr != _gameUsers.end ())
         {
-          player->get ()->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendWantsToTakeCardsFromTableDoYouWantToAddCards{}));
+          gameUserItr->_user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendWantsToTakeCardsFromTableDoYouWantToAddCards{}));
         }
     }
   else
@@ -448,34 +450,34 @@ auto const askAttackAgain = [] (PassAttackAndAssist &passAttackAndAssist, durak:
   if (passAttackAndAssist.assist && passAttackAndAssist.attack)
     {
       game.nextRound (true);
-      sendGameDataToAccountsInGame (game, users);
+      sendGameDataToAccountsInGame (game, _gameUsers);
       if (game.checkIfGameIsOver ())
         {
           if (auto durak = game.durak ())
             {
-              ranges::for_each (users, [durak = durak->id] (std::shared_ptr<User> const &user) {
-                if (user->accountName == durak) user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverLose{}));
+              ranges::for_each (_gameUsers, [durak = durak->id] (auto const &gameUser) {
+                if (gameUser._user->accountName == durak) gameUser._user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverLose{}));
                 else
-                  user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverWon{}));
+                  gameUser._user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverWon{}));
               });
             }
           else
             {
-              ranges::for_each (users, [] (std::shared_ptr<User> const &user) { user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverDraw{})); });
+              ranges::for_each (_gameUsers, [] (auto const &gameUser) { gameUser._user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverDraw{})); });
             }
         }
     }
 };
-auto const askAssistAgain = [] (PassAttackAndAssist &passAttackAndAssist, durak::Game &game, std::vector<std::shared_ptr<User>> &users) {
+auto const askAssistAgain = [] (PassAttackAndAssist &passAttackAndAssist, durak::Game &game, std::vector<GameUser> &_gameUsers) {
   if (auto attackingPlayer = game.getAttackingPlayer (); not(attackingPlayer && not attackingPlayer->getCards ().empty ()))
     {
       passAttackAndAssist.attack = true;
     }
   if (auto assistingPlayer = game.getAssistingPlayer (); assistingPlayer && not assistingPlayer->getCards ().empty ())
     {
-      if (auto player = ranges::find_if (users, [&assistingPlayer] (std::shared_ptr<User> const &user) { return user->accountName.value () == assistingPlayer->id; }); player != users.end ())
+      if (auto gameUserItr = ranges::find_if (_gameUsers, [&assistingPlayer] (auto const &gameUser) { return gameUser._user->accountName.value () == assistingPlayer->id; }); gameUserItr != _gameUsers.end ())
         {
-          player->get ()->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendWantsToTakeCardsFromTableDoYouWantToAddCards{}));
+          gameUserItr->_user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendWantsToTakeCardsFromTableDoYouWantToAddCards{}));
         }
     }
   else
@@ -485,20 +487,20 @@ auto const askAssistAgain = [] (PassAttackAndAssist &passAttackAndAssist, durak:
   if (passAttackAndAssist.assist && passAttackAndAssist.attack)
     {
       game.nextRound (true);
-      sendGameDataToAccountsInGame (game, users);
+      sendGameDataToAccountsInGame (game, _gameUsers);
       if (game.checkIfGameIsOver ())
         {
           if (auto durak = game.durak ())
             {
-              ranges::for_each (users, [durak = durak->id] (std::shared_ptr<User> const &user) {
-                if (user->accountName == durak) user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverLose{}));
+              ranges::for_each (_gameUsers, [durak = durak->id] (auto const &gameUser) {
+                if (gameUser._user->accountName == durak) gameUser._user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverLose{}));
                 else
-                  user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverWon{}));
+                  gameUser._user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverWon{}));
               });
             }
           else
             {
-              ranges::for_each (users, [] (std::shared_ptr<User> const &user) { user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverDraw{})); });
+              ranges::for_each (_gameUsers, [] (auto const &gameUser) { gameUser._user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverDraw{})); });
             }
         }
     }

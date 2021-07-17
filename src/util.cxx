@@ -1,6 +1,5 @@
 #include "src/util.hxx"
 #include <range/v3/all.hpp>
-
 durak::GameData
 filterGameDataByAccountName (durak::GameData const &gameData, std::string const &accountName)
 {
@@ -13,9 +12,9 @@ filterGameDataByAccountName (durak::GameData const &gameData, std::string const 
 }
 
 void
-sendGameDataToAccountsInGame (durak::Game const &game, std::vector<std::shared_ptr<User>> &users)
+sendGameDataToAccountsInGame (durak::Game const &game, std::vector<GameUser> const&_gameUsers)
 {
   auto gameData = game.getGameData ();
   ranges::for_each (gameData.players, [] (auto &player) { ranges::sort (player.cards, [] (auto const &card1, auto const &card2) { return card1.value () < card2.value (); }); });
-  ranges::for_each (users, [&gameData] (auto const &_user) { _user->msgQueue.push_back (objectToStringWithObjectName (filterGameDataByAccountName (gameData, _user->accountName.value ()))); });
+  ranges::for_each (_gameUsers, [&gameData] (auto const &gameUser) { gameUser._user->msgQueue.push_back (objectToStringWithObjectName (filterGameDataByAccountName (gameData, gameUser._user->accountName.value ()))); });
 }
