@@ -104,13 +104,10 @@ struct waitingRelog
 struct initTimer
 {
 };
-struct resetTimer
+struct nextRoundTimer
 {
 };
 struct pauseTimer
-{
-};
-struct addToTimer
 {
 };
 

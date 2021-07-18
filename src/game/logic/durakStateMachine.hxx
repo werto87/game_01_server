@@ -50,6 +50,93 @@ struct my_logger
   }
 };
 
+auto const timerActive = [] (TimerOption &timerOption) { return timerOption.timerType != TimerType::noTimer; };
+
+inline void
+removeUserFromGame (std::string const &userToRemove, durak::Game &game, std::vector<GameUser> &_gameUsers)
+{
+  if (not game.checkIfGameIsOver ())
+    {
+      game.removePlayer (userToRemove);
+
+      if (auto durak = game.durak ())
+        {
+          ranges::for_each (_gameUsers, [durak = durak->id] (auto const &gameUser) {
+            if (gameUser._user->accountName == durak) gameUser._user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverLose{}));
+            else
+              gameUser._user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverWon{}));
+          });
+        }
+      else
+        {
+          ranges::for_each (_gameUsers, [] (auto const &gameUser) { gameUser._user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverDraw{})); });
+        }
+    }
+}
+
+boost::asio::awaitable<void> inline runTimer (std::shared_ptr<boost::asio::steady_timer> timer, std::string const &accountName, durak::Game &game, std::vector<GameUser> &_gameUsers)
+{
+  try
+    {
+      co_await timer->async_wait (boost::asio::use_awaitable);
+      removeUserFromGame (accountName, game, _gameUsers);
+      ranges::for_each (_gameUsers, [] (auto const &gameUser) { gameUser._timer->cancel (); });
+    }
+  catch (boost::system::system_error &e)
+    {
+      using namespace boost::system::errc;
+      if (operation_canceled == e.code ())
+        {
+          // swallow cancel
+        }
+      else
+        {
+          std::cout << "error in timer boost::system::errc: " << e.code () << std::endl;
+          abort ();
+        }
+    }
+}
+
+auto const initTimerHandler = [] (durak::Game &game, std::vector<GameUser> &_gameUsers, TimerOption &timerOption) {
+  ranges::for_each (_gameUsers, [&timerOption, &game, &_gameUsers] (auto &gameUser) {
+    gameUser._timer->expires_after (timerOption.timeAtStart);
+    co_spawn (
+        gameUser._timer->get_executor (), [_timer = gameUser._timer, accountName = gameUser._user->accountName.value (), &game, &_gameUsers] () { return runTimer (_timer, accountName, game, _gameUsers); }, boost::asio::detached);
+  });
+};
+
+auto const pauseTimerHandler = [] (std::vector<GameUser> &_gameUsers) {
+  ranges::for_each (_gameUsers, [] (auto &gameUser) {
+    using namespace std::chrono;
+    gameUser._pausedTime = duration_cast<milliseconds> (gameUser._timer->expiry () - steady_clock::now ());
+    gameUser._timer->cancel ();
+  });
+};
+
+auto const nextRoundTimerHandler = [] (durak::Game &game, std::vector<GameUser> &_gameUsers, TimerOption &timerOption) {
+  ranges::for_each (_gameUsers, [&timerOption, &game, &_gameUsers] (auto &gameUser) {
+    using namespace std::chrono;
+    if (timerOption.timerType == TimerType::addTimeOnNewRound)
+      {
+        gameUser._timer->expires_after (timerOption.timeForEachRound + duration_cast<milliseconds> (gameUser._timer->expiry () - steady_clock::now ()));
+      }
+    else
+      {
+        gameUser._timer->expires_after (timerOption.timeForEachRound);
+      }
+    co_spawn (
+        gameUser._timer->get_executor (), [_timer = gameUser._timer, accountName = gameUser._user->accountName.value (), &game, &_gameUsers] () { return runTimer (_timer, accountName, game, _gameUsers); }, boost::asio::detached);
+  });
+};
+
+auto const resumeTimerHandler = [] (durak::Game &game, std::vector<GameUser> &_gameUsers) {
+  ranges::for_each (_gameUsers, [&game, &_gameUsers] (auto &gameUser) {
+    gameUser._timer->expires_after (gameUser._pausedTime);
+    co_spawn (
+        gameUser._timer->get_executor (), [_timer = gameUser._timer, accountName = gameUser._user->accountName.value (), &game, &_gameUsers] () { return runTimer (_timer, accountName, game, _gameUsers); }, boost::asio::detached);
+  });
+};
+
 // care const& is not &. AttackAndAssistAnswer &attackAndAssistAnswer is another object than AttackAndAssistAnswer const&attackAndAssistAnswer
 
 auto const allCardsBeaten = [] (durak::Game &game) {
@@ -121,7 +208,7 @@ auto const checkData = [] (PassAttackAndAssist &passAttackAndAssist, durak::Game
     }
 };
 
-auto const checkAttackAndAssistAnswer = [] (PassAttackAndAssist &passAttackAndAssist, durak::Game &game, std::vector<GameUser> &_gameUsers, boost::sml::back::process<chill> process_event) {
+auto const checkAttackAndAssistAnswer = [] (PassAttackAndAssist &passAttackAndAssist, durak::Game &game, std::vector<GameUser> &_gameUsers, boost::sml::back::process<chill, nextRoundTimer> process_event) {
   if (auto attackingPlayer = game.getAttackingPlayer (); not attackingPlayer || attackingPlayer->getCards ().empty ())
     {
       passAttackAndAssist.attack = true;
@@ -133,6 +220,7 @@ auto const checkAttackAndAssistAnswer = [] (PassAttackAndAssist &passAttackAndAs
   if (passAttackAndAssist.attack && passAttackAndAssist.assist)
     {
       game.nextRound (true);
+      process_event (nextRoundTimer{});
       sendGameDataToAccountsInGame (game, _gameUsers);
       if (game.checkIfGameIsOver ())
         {
@@ -163,28 +251,6 @@ auto const startAskDef = [] (durak::Game &game, std::vector<GameUser> &_gameUser
     }
 };
 
-inline void
-removeUserFromGame (std::string const &userToRemove, durak::Game &game, std::vector<GameUser> &_gameUsers)
-{
-  if (not game.checkIfGameIsOver ())
-    {
-      game.removePlayer (userToRemove);
-
-      if (auto durak = game.durak ())
-        {
-          ranges::for_each (_gameUsers, [durak = durak->id] (auto const &gameUser) {
-            if (gameUser._user->accountName == durak) gameUser._user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverLose{}));
-            else
-              gameUser._user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverWon{}));
-          });
-        }
-      else
-        {
-          ranges::for_each (_gameUsers, [] (auto const &gameUser) { gameUser._user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverDraw{})); });
-        }
-    }
-}
-
 auto const userLeftGame = [] (leaveGame const &leaveGameEv, durak::Game &game, std::vector<GameUser> &_gameUsers) {
   removeUserFromGame (leaveGameEv.accountName, game, _gameUsers);
   ranges::for_each (_gameUsers, [] (auto const &gameUser) { gameUser._timer->cancel (); });
@@ -194,7 +260,7 @@ auto const userLeftGame = [] (leaveGame const &leaveGameEv, durak::Game &game, s
     }
 };
 
-auto const startAskAttackAndAssist = [] (PassAttackAndAssist &passAttackAndAssist, durak::Game &game, std::vector<GameUser> &_gameUsers) {
+auto const startAskAttackAndAssist = [] (PassAttackAndAssist &passAttackAndAssist, durak::Game &game, std::vector<GameUser> &_gameUsers, boost::sml::back::process<nextRoundTimer> process_event) {
   passAttackAndAssist = PassAttackAndAssist{};
   if (auto attackingPlayer = game.getAttackingPlayer (); attackingPlayer && not attackingPlayer->getCards ().empty ())
     {
@@ -221,6 +287,7 @@ auto const startAskAttackAndAssist = [] (PassAttackAndAssist &passAttackAndAssis
   if (passAttackAndAssist.assist && passAttackAndAssist.attack)
     {
       game.nextRound (true);
+      process_event (nextRoundTimer{});
       sendGameDataToAccountsInGame (game, _gameUsers);
       if (game.checkIfGameIsOver ())
         {
@@ -302,13 +369,14 @@ auto const setAssistPass = [] (assistPass const &assistPassEv, PassAttackAndAssi
     }
 };
 
-auto const handleDefendSuccess = [] (defendAnswerNo const &defendAnswerNoEv, durak::Game &game, std::vector<GameUser> &_gameUsers) {
+auto const handleDefendSuccess = [] (defendAnswerNo const &defendAnswerNoEv, durak::Game &game, std::vector<GameUser> &_gameUsers, boost::sml::back::process<nextRoundTimer> process_event) {
   if (auto gameUserItr = ranges::find_if (_gameUsers, [accountName = defendAnswerNoEv.playerName] (auto const &gameUser) { return gameUser._user->accountName.value () == accountName; }); gameUserItr != _gameUsers.end ())
     {
       auto &sendingUserMsgQueue = gameUserItr->_user->msgQueue;
       if (game.getRoleForName (defendAnswerNoEv.playerName) == durak::PlayerRole::defend)
         {
           game.nextRound (false);
+          process_event (nextRoundTimer{});
           if (game.checkIfGameIsOver ())
             {
               if (auto durak = game.durak ())
@@ -438,7 +506,7 @@ auto const doDefend = [] (defend const &defendEv, durak::Game &game, std::vector
     }
 };
 
-auto const askAttackAgain = [] (PassAttackAndAssist &passAttackAndAssist, durak::Game &game, std::vector<GameUser> &_gameUsers) {
+auto const askAttackAgain = [] (PassAttackAndAssist &passAttackAndAssist, durak::Game &game, std::vector<GameUser> &_gameUsers, boost::sml::back::process<nextRoundTimer> process_event) {
   if (auto attackingPlayer = game.getAttackingPlayer (); not passAttackAndAssist.attack && attackingPlayer && not attackingPlayer->getCards ().empty ())
     {
       if (auto gameUserItr = ranges::find_if (_gameUsers, [&attackingPlayer] (auto const &gameUser) { return gameUser._user->accountName.value () == attackingPlayer->id; }); gameUserItr != _gameUsers.end ())
@@ -456,7 +524,13 @@ auto const askAttackAgain = [] (PassAttackAndAssist &passAttackAndAssist, durak:
     }
   if (passAttackAndAssist.assist && passAttackAndAssist.attack)
     {
+
       game.nextRound (true);
+      process_event (nextRoundTimer{});
+      // if (timerActive (timerOption))
+      //   {
+      //     nextRoundTimerHandler (game, _gameUsers, timerOption);
+      //   }
       sendGameDataToAccountsInGame (game, _gameUsers);
       if (game.checkIfGameIsOver ())
         {
@@ -475,7 +549,7 @@ auto const askAttackAgain = [] (PassAttackAndAssist &passAttackAndAssist, durak:
         }
     }
 };
-auto const askAssistAgain = [] (PassAttackAndAssist &passAttackAndAssist, durak::Game &game, std::vector<GameUser> &_gameUsers) {
+auto const askAssistAgain = [] (PassAttackAndAssist &passAttackAndAssist, durak::Game &game, std::vector<GameUser> &_gameUsers, boost::sml::back::process<nextRoundTimer> process_event) {
   if (auto attackingPlayer = game.getAttackingPlayer (); not(attackingPlayer && not attackingPlayer->getCards ().empty ()))
     {
       passAttackAndAssist.attack = true;
@@ -494,6 +568,11 @@ auto const askAssistAgain = [] (PassAttackAndAssist &passAttackAndAssist, durak:
   if (passAttackAndAssist.assist && passAttackAndAssist.attack)
     {
       game.nextRound (true);
+      process_event (nextRoundTimer{});
+      // if (timerActive (timerOption))
+      //   {
+      //     nextRoundTimerHandler (game, _gameUsers, timerOption);
+      //   }
       sendGameDataToAccountsInGame (game, _gameUsers);
       if (game.checkIfGameIsOver ())
         {
@@ -511,73 +590,6 @@ auto const askAssistAgain = [] (PassAttackAndAssist &passAttackAndAssist, durak:
             }
         }
     }
-};
-
-boost::asio::awaitable<void> inline runTimer (std::shared_ptr<boost::asio::steady_timer> timer, std::string const &accountName, durak::Game &game, std::vector<GameUser> &_gameUsers)
-{
-  try
-    {
-      co_await timer->async_wait (boost::asio::use_awaitable);
-      removeUserFromGame (accountName, game, _gameUsers);
-      ranges::for_each (_gameUsers, [] (auto const &gameUser) { gameUser._timer->cancel (); });
-      std::cout << "Game over!" << std::endl;
-    }
-  catch (boost::system::system_error &e)
-    {
-      using namespace boost::system::errc;
-      if (operation_canceled == e.code ())
-        {
-          // swallow cancel
-        }
-      else
-        {
-          std::cout << "error in timer boost::system::errc: " << e.code () << std::endl;
-          abort ();
-        }
-    }
-}
-
-auto const timerActive = [] (TimerOption const &timerOption) { return timerOption.timerType != TimerType::noTimer; };
-
-auto const initTimerHandler = [] (durak::Game &game, std::vector<GameUser> &_gameUsers, TimerOption const &timerOption) {
-  ranges::for_each (_gameUsers, [&timerOption, &game, &_gameUsers] (auto &gameUser) {
-    gameUser._timer->expires_after (timerOption.timeAtStart);
-    co_spawn (
-        gameUser._timer->get_executor (), [_timer = gameUser._timer, accountName = gameUser._user->accountName.value (), &game, &_gameUsers] () { return runTimer (_timer, accountName, game, _gameUsers); }, boost::asio::detached);
-  });
-};
-
-auto const resetTimerHandler = [] (durak::Game &game, std::vector<GameUser> &_gameUsers, TimerOption const &timerOption) {
-  ranges::for_each (_gameUsers, [&timerOption, &game, &_gameUsers] (auto &gameUser) {
-    gameUser._timer->expires_after (timerOption.timeForEachRound);
-    co_spawn (
-        gameUser._timer->get_executor (), [_timer = gameUser._timer, accountName = gameUser._user->accountName.value (), &game, &_gameUsers] () { return runTimer (_timer, accountName, game, _gameUsers); }, boost::asio::detached);
-  });
-};
-
-auto const pauseTimerHandler = [] (std::vector<GameUser> &_gameUsers) {
-  ranges::for_each (_gameUsers, [] (auto &gameUser) {
-    using namespace std::chrono;
-    gameUser._pausedTime = duration_cast<milliseconds> (gameUser._timer->expiry () - steady_clock::now ());
-    gameUser._timer->cancel ();
-  });
-};
-
-auto const addToTimerHandler = [] (durak::Game &game, std::vector<GameUser> &_gameUsers, TimerOption const &timerOption) {
-  ranges::for_each (_gameUsers, [&timerOption, &game, &_gameUsers] (auto &gameUser) {
-    using namespace std::chrono;
-    gameUser._timer->expires_after (timerOption.timeForEachRound + duration_cast<milliseconds> (gameUser._timer->expiry () - steady_clock::now ()));
-    co_spawn (
-        gameUser._timer->get_executor (), [_timer = gameUser._timer, accountName = gameUser._user->accountName.value (), &game, &_gameUsers] () { return runTimer (_timer, accountName, game, _gameUsers); }, boost::asio::detached);
-  });
-};
-
-auto const resumeTimerHandler = [] (durak::Game &game, std::vector<GameUser> &_gameUsers) {
-  ranges::for_each (_gameUsers, [&game, &_gameUsers] (auto &gameUser) {
-    gameUser._timer->expires_after (gameUser._pausedTime);
-    co_spawn (
-        gameUser._timer->get_executor (), [_timer = gameUser._timer, accountName = gameUser._user->accountName.value (), &game, &_gameUsers] () { return runTimer (_timer, accountName, game, _gameUsers); }, boost::asio::detached);
-  });
 };
 
 struct PassMachine
@@ -613,10 +625,9 @@ struct PassMachine
 /*--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/      
 ,*"leaveGameHandler"_s          + event<leaveGame>                                        / userLeftGame                                
 ,*"timerHandler"_s              + event<initTimer>              [timerActive]             / initTimerHandler                               
-, "timerHandler"_s              + event<resetTimer>             [timerActive]             / resetTimerHandler
+, "timerHandler"_s              + event<nextRoundTimer>         [timerActive]             / nextRoundTimerHandler
 , "timerHandler"_s              + event<pauseTimer>             [timerActive]             / pauseTimerHandler
 , "timerHandler"_s              + event<resumeTimer>            [timerActive]             / resumeTimerHandler
-, "timerHandler"_s              + event<addToTimer>             [timerActive]             / addToTimerHandler
 // clang-format on   
     );
   }

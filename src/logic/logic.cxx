@@ -357,7 +357,7 @@ createGame (std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys, std::l
           auto names = std::vector<std::string>{};
           ranges::transform (gameLobbyWithUser->_users, ranges::back_inserter (names), [] (auto const &tempUser) { return tempUser->accountName.value (); });
           auto game = durak::Game{ std::move (names), gameLobbyWithUser->gameOption };
-          auto &gameMachine = gameMachines.emplace_back (game, gameLobbyWithUser->_users, io_context, TimerOption{ TimerType::resetTimeOnNewRound, std::chrono::seconds{ 5 }, std::chrono::seconds{ 5 } });
+          auto &gameMachine = gameMachines.emplace_back (game, gameLobbyWithUser->_users, io_context, TimerOption{ TimerType::resetTimeOnNewRound, std::chrono::seconds{ 20 }, std::chrono::seconds{ 20 } });
           sendGameDataToAccountsInGame (gameMachine.getGame (), gameMachine.getGameUsers ());
           gameLobbys.erase (gameLobbyWithUser);
         }
