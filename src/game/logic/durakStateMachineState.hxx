@@ -109,10 +109,12 @@ struct nextRoundTimer
 };
 struct pauseTimer
 {
+  std::vector<std::string> playersToPause{};
 };
 
 struct resumeTimer
 {
+  std::vector<std::string> playersToResume{};
 };
 enum struct TimerType
 {
