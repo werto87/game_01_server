@@ -6,12 +6,14 @@
 #include "src/game/logic/durakStateMachineState.hxx"
 #include "src/server/user.hxx"
 #include "src/util.hxx"
+#include <boost/asio/co_spawn.hpp>
 #include <boost/sml.hpp>
 #include <fmt/format.h>
 #include <game_01_shared_class/serialization.hxx>
 #include <iostream>
 #include <optional>
 #include <queue>
+#include <range/v3/algorithm/for_each.hpp>
 #include <range/v3/all.hpp>
 #include <vector>
 
@@ -161,28 +163,33 @@ auto const startAskDef = [] (durak::Game &game, std::vector<GameUser> &_gameUser
     }
 };
 
+inline void
+removeUserFromGame (std::string const &userToRemove, durak::Game &game, std::vector<GameUser> &_gameUsers)
+{
+  if (not game.checkIfGameIsOver ())
+    {
+      game.removePlayer (userToRemove);
+
+      if (auto durak = game.durak ())
+        {
+          ranges::for_each (_gameUsers, [durak = durak->id] (auto const &gameUser) {
+            if (gameUser._user->accountName == durak) gameUser._user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverLose{}));
+            else
+              gameUser._user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverWon{}));
+          });
+        }
+      else
+        {
+          ranges::for_each (_gameUsers, [] (auto const &gameUser) { gameUser._user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverDraw{})); });
+        }
+    }
+}
+
 auto const userLeftGame = [] (leaveGame const &leaveGameEv, durak::Game &game, std::vector<GameUser> &_gameUsers) {
+  removeUserFromGame (leaveGameEv.accountName, game, _gameUsers);
+  ranges::for_each (_gameUsers, [] (auto const &gameUser) { gameUser._timer->cancel (); });
   if (auto gameUserItr = ranges::find_if (_gameUsers, [accountName = leaveGameEv.accountName] (auto const &gameUser) { return gameUser._user->accountName == accountName; }); gameUserItr != _gameUsers.end ())
     {
-      if (not game.checkIfGameIsOver ())
-        {
-          game.removePlayer (leaveGameEv.accountName);
-        }
-      if (game.checkIfGameIsOver ())
-        {
-          if (auto durak = game.durak ())
-            {
-              ranges::for_each (_gameUsers, [durak = durak->id] (auto const &gameUser) {
-                if (gameUser._user->accountName == durak) gameUser._user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverLose{}));
-                else
-                  gameUser._user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverWon{}));
-              });
-            }
-          else
-            {
-              ranges::for_each (_gameUsers, [] (auto const &gameUser) { gameUser._user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverDraw{})); });
-            }
-        }
       _gameUsers.erase (gameUserItr);
     }
 };
@@ -506,6 +513,73 @@ auto const askAssistAgain = [] (PassAttackAndAssist &passAttackAndAssist, durak:
     }
 };
 
+boost::asio::awaitable<void> inline runTimer (std::shared_ptr<boost::asio::steady_timer> timer, std::string const &accountName, durak::Game &game, std::vector<GameUser> &_gameUsers)
+{
+  try
+    {
+      co_await timer->async_wait (boost::asio::use_awaitable);
+      removeUserFromGame (accountName, game, _gameUsers);
+      ranges::for_each (_gameUsers, [] (auto const &gameUser) { gameUser._timer->cancel (); });
+      std::cout << "Game over!" << std::endl;
+    }
+  catch (boost::system::system_error &e)
+    {
+      using namespace boost::system::errc;
+      if (operation_canceled == e.code ())
+        {
+          // swallow cancel
+        }
+      else
+        {
+          std::cout << "error in timer boost::system::errc: " << e.code () << std::endl;
+          abort ();
+        }
+    }
+}
+
+auto const timerActive = [] (TimerOption const &timerOption) { return timerOption.timerType != TimerType::noTimer; };
+
+auto const initTimerHandler = [] (durak::Game &game, std::vector<GameUser> &_gameUsers, TimerOption const &timerOption) {
+  ranges::for_each (_gameUsers, [&timerOption, &game, &_gameUsers] (auto &gameUser) {
+    gameUser._timer->expires_after (timerOption.timeAtStart);
+    co_spawn (
+        gameUser._timer->get_executor (), [_timer = gameUser._timer, accountName = gameUser._user->accountName.value (), &game, &_gameUsers] () { return runTimer (_timer, accountName, game, _gameUsers); }, boost::asio::detached);
+  });
+};
+
+auto const resetTimerHandler = [] (durak::Game &game, std::vector<GameUser> &_gameUsers, TimerOption const &timerOption) {
+  ranges::for_each (_gameUsers, [&timerOption, &game, &_gameUsers] (auto &gameUser) {
+    gameUser._timer->expires_after (timerOption.timeForEachRound);
+    co_spawn (
+        gameUser._timer->get_executor (), [_timer = gameUser._timer, accountName = gameUser._user->accountName.value (), &game, &_gameUsers] () { return runTimer (_timer, accountName, game, _gameUsers); }, boost::asio::detached);
+  });
+};
+
+auto const pauseTimerHandler = [] (std::vector<GameUser> &_gameUsers) {
+  ranges::for_each (_gameUsers, [] (auto &gameUser) {
+    using namespace std::chrono;
+    gameUser._pausedTime = duration_cast<milliseconds> (gameUser._timer->expiry () - steady_clock::now ());
+    gameUser._timer->cancel ();
+  });
+};
+
+auto const addToTimerHandler = [] (durak::Game &game, std::vector<GameUser> &_gameUsers, TimerOption const &timerOption) {
+  ranges::for_each (_gameUsers, [&timerOption, &game, &_gameUsers] (auto &gameUser) {
+    using namespace std::chrono;
+    gameUser._timer->expires_after (timerOption.timeForEachRound + duration_cast<milliseconds> (gameUser._timer->expiry () - steady_clock::now ()));
+    co_spawn (
+        gameUser._timer->get_executor (), [_timer = gameUser._timer, accountName = gameUser._user->accountName.value (), &game, &_gameUsers] () { return runTimer (_timer, accountName, game, _gameUsers); }, boost::asio::detached);
+  });
+};
+
+auto const resumeTimerHandler = [] (durak::Game &game, std::vector<GameUser> &_gameUsers) {
+  ranges::for_each (_gameUsers, [&game, &_gameUsers] (auto &gameUser) {
+    gameUser._timer->expires_after (gameUser._pausedTime);
+    co_spawn (
+        gameUser._timer->get_executor (), [_timer = gameUser._timer, accountName = gameUser._user->accountName.value (), &game, &_gameUsers] () { return runTimer (_timer, accountName, game, _gameUsers); }, boost::asio::detached);
+  });
+};
+
 struct PassMachine
 {
   auto
@@ -515,7 +589,7 @@ struct PassMachine
     return make_transition_table (
         // clang-format off
 /*--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/      
-* state<Chill>                  + on_entry<_>                                             / resetPassStateMachineData           
+* state<Chill>                  + on_entry<_>                                             /(resetPassStateMachineData)           
 , state<Chill>                  + event<askDef>                                                                                       = state<AskDef>
 , state<Chill>                  + event<askAttackAndAssist>                                                                           = state<AskAttackAndAssist>
 , state<Chill>                  + event<attackPass>                                       /(setAttackPass,checkData)
@@ -538,6 +612,11 @@ struct PassMachine
 , state<AskAttackAndAssist>     + event<assistRelog>                                      / askAssistAgain
 /*--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/      
 ,*"leaveGameHandler"_s          + event<leaveGame>                                        / userLeftGame                                
+,*"timerHandler"_s              + event<initTimer>              [timerActive]             / initTimerHandler                               
+, "timerHandler"_s              + event<resetTimer>             [timerActive]             / resetTimerHandler
+, "timerHandler"_s              + event<pauseTimer>             [timerActive]             / pauseTimerHandler
+, "timerHandler"_s              + event<resumeTimer>            [timerActive]             / resumeTimerHandler
+, "timerHandler"_s              + event<addToTimer>             [timerActive]             / addToTimerHandler
 // clang-format on   
     );
   }

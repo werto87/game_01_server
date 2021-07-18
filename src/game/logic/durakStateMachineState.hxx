@@ -2,6 +2,7 @@
 #define A30C538C_58C3_49A5_8853_24519FACCE71
 #include "durak/card.hxx"
 #include <boost/optional.hpp>
+#include <chrono>
 #include <optional>
 #include <queue>
 #include <string>
@@ -98,6 +99,36 @@ struct assistRelog
 };
 struct waitingRelog
 {
+};
+
+struct initTimer
+{
+};
+struct resetTimer
+{
+};
+struct pauseTimer
+{
+};
+struct addToTimer
+{
+};
+
+struct resumeTimer
+{
+};
+enum struct TimerType
+{
+  resetTimeOnNewRound,
+  addTimeOnNewRound,
+  noTimer
+};
+
+struct TimerOption
+{
+  TimerType timerType{};
+  std::chrono::seconds timeAtStart{};
+  std::chrono::seconds timeForEachRound{};
 };
 
 #endif /* A30C538C_58C3_49A5_8853_24519FACCE71 */
