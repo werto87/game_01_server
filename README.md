@@ -42,4 +42,5 @@ CXX=Path to clang++
 - Build Modern Durak Server 'cmake --build .'
 ## How to run Modern Durak Server
 Run Modern Durak Server on default port which is 55555 './bin/project'  
-Run Modern Durak Server on 44444 './bin/project 44444'
+Run Modern Durak Server on 44444 './bin/project 44444'  
+Note: Currently the Client tries to connect to localhost:55555 
