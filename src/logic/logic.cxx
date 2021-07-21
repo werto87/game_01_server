@@ -15,6 +15,7 @@
 #include <boost/fusion/include/sequence.hpp>
 #include <boost/fusion/sequence.hpp>
 #include <boost/fusion/support/pair.hpp>
+#include <boost/numeric/conversion/cast.hpp>
 #include <boost/optional.hpp>
 #include <boost/optional/optional_io.hpp>
 #include <boost/serialization/optional.hpp>
@@ -174,6 +175,10 @@ handleMessage (std::string const &msg, boost::asio::io_context &io_context, boos
       else if (typeToSearch == "DurakLeaveGame")
         {
           durakLeaveGame (user, gameMachines);
+        }
+      else if (typeToSearch == "SetTimerOption")
+        {
+          setTimerOption (objectAsString, user, gameLobbys);
         }
       else
         {
@@ -357,7 +362,7 @@ createGame (std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys, std::l
           auto names = std::vector<std::string>{};
           ranges::transform (gameLobbyWithUser->_users, ranges::back_inserter (names), [] (auto const &tempUser) { return tempUser->accountName.value (); });
           auto game = durak::Game{ std::move (names), gameLobbyWithUser->gameOption };
-          auto &gameMachine = gameMachines.emplace_back (game, gameLobbyWithUser->_users, io_context, TimerOption{ TimerType::resetTimeOnNewRound, std::chrono::seconds{ 20 }, std::chrono::seconds{ 10 } });
+          auto &gameMachine = gameMachines.emplace_back (game, gameLobbyWithUser->_users, io_context, gameLobbyWithUser->timerOption);
           sendGameDataToAccountsInGame (gameMachine.getGame (), gameMachine.getGameUsers ());
           gameLobbys.erase (gameLobbyWithUser);
         }
@@ -429,6 +434,7 @@ joinGameLobby (std::string const &objectAsString, std::shared_ptr<User> user, st
           usersInGameLobby.durakGameOption.maxCardValue = gameLobby->gameOption.maxCardValue;
           ranges::transform (gameLobby->accountNames (), ranges::back_inserter (usersInGameLobby.users), [] (auto const &accountName) { return shared_class::UserInGameLobby{ accountName }; });
           gameLobby->sendToAllAccountsInGameLobby (objectToStringWithObjectName (usersInGameLobby));
+          gameLobby->sendToAllAccountsInGameLobby (objectToStringWithObjectName (shared_class::SetTimerOption{ gameLobby->timerOption.timerType, boost::numeric_cast<int> (gameLobby->timerOption.timeAtStart.count ()), boost::numeric_cast<int> (gameLobby->timerOption.timeForEachRound.count ()) }));
           return {};
         }
       else
@@ -499,6 +505,28 @@ setMaxCardValueInCreateGameLobby (std::string const &objectAsString, std::shared
     }
 }
 
+void
+setTimerOption (std::string const &objectAsString, std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys)
+{
+  auto setTimerOptionObject = stringToObject<shared_class::SetTimerOption> (objectAsString);
+  auto accountNameToSearch = user->accountName.value ();
+  if (auto gameLobbyWithAccount = ranges::find_if (gameLobbys,
+                                                   [accountName = user->accountName] (auto const &gameLobby) {
+                                                     auto const &accountNames = gameLobby.accountNames ();
+                                                     return ranges::find_if (accountNames, [&accountName] (auto const &nameToCheck) { return nameToCheck == accountName; }) != accountNames.end ();
+                                                   });
+      gameLobbyWithAccount != gameLobbys.end ())
+    {
+      using namespace std::chrono;
+      gameLobbyWithAccount->timerOption = TimerOption{ setTimerOptionObject.timerType, seconds (setTimerOptionObject.timeAtStartInSeconds), seconds (setTimerOptionObject.timeForEachRoundInSeconds) };
+      gameLobbyWithAccount->sendToAllAccountsInGameLobby (objectToStringWithObjectName (setTimerOptionObject));
+    }
+  else
+    {
+      user->msgQueue.push_back (objectToStringWithObjectName (shared_class::SetTimerOptionError{ "could not find a game lobby for account" }));
+    }
+}
+
 std::optional<std::string>
 leaveGameLobby (std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys)
 {
@@ -520,7 +548,6 @@ leaveGameLobby (std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys)
           usersInGameLobby.name = gameLobbyWithAccount->gameLobbyName ();
           usersInGameLobby.durakGameOption.maxCardValue = gameLobbyWithAccount->gameOption.maxCardValue;
           ranges::transform (gameLobbyWithAccount->accountNames (), ranges::back_inserter (usersInGameLobby.users), [] (auto const &accountName) { return shared_class::UserInGameLobby{ accountName }; });
-          gameLobbyWithAccount->sendToAllAccountsInGameLobby (objectToStringWithObjectName (usersInGameLobby));
         }
       return objectToStringWithObjectName (shared_class::LeaveGameLobbySuccess{});
     }
@@ -550,10 +577,14 @@ relogTo (std::string const &objectAsString, std::shared_ptr<User> user, std::lis
           usersInGameLobby.name = gameLobbyWithAccount->gameLobbyName ();
           usersInGameLobby.durakGameOption.maxCardValue = gameLobbyWithAccount->gameOption.maxCardValue;
           ranges::transform (gameLobbyWithAccount->accountNames (), ranges::back_inserter (usersInGameLobby.users), [] (auto const &accountName) { return shared_class::UserInGameLobby{ accountName }; });
+          user->msgQueue.push_back (objectToStringWithObjectName (shared_class::SetTimerOption{ gameLobbyWithAccount->timerOption.timerType, boost::numeric_cast<int> (gameLobbyWithAccount->timerOption.timeAtStart.count ()), boost::numeric_cast<int> (gameLobbyWithAccount->timerOption.timeForEachRound.count ()) }));
           return objectToStringWithObjectName (usersInGameLobby);
         }
       else
         {
+          // TODO remove user from game
+          // logic only handles user does not want to relog to lobby but its possible he does not want to relog to game
+          // bug: after this user can not join a new game
           gameLobbyWithAccount->removeUser (user);
           if (gameLobbyWithAccount->accountCount () == 0)
             {

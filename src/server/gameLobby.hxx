@@ -2,6 +2,7 @@
 #define DBE82937_D6AB_4777_A3C8_A62B68300AA3
 
 #include "durak/gameOption.hxx"
+#include "src/game/logic/durakStateMachineState.hxx"
 #include "src/server/user.hxx"
 #include <cstddef>
 #include <list>
@@ -31,6 +32,7 @@ struct GameLobby
 
   std::vector<std::shared_ptr<User>> _users{};
   durak::GameOption gameOption{};
+  TimerOption timerOption{};
 
 private:
   std::string _name{};

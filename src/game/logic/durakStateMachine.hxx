@@ -7,7 +7,10 @@
 #include "src/server/user.hxx"
 #include "src/util.hxx"
 #include <boost/asio/co_spawn.hpp>
+#include <boost/asio/system_timer.hpp>
 #include <boost/sml.hpp>
+#include <chrono>
+#include <cstdlib>
 #include <fmt/format.h>
 #include <game_01_shared_class/serialization.hxx>
 #include <iostream>
@@ -15,6 +18,7 @@
 #include <queue>
 #include <range/v3/algorithm/for_each.hpp>
 #include <range/v3/all.hpp>
+#include <utility>
 #include <vector>
 
 struct my_logger
@@ -50,7 +54,7 @@ struct my_logger
   }
 };
 
-auto const timerActive = [] (TimerOption &timerOption) { return timerOption.timerType != TimerType::noTimer; };
+auto const timerActive = [] (TimerOption &timerOption) { return timerOption.timerType != shared_class::TimerType::noTimer; };
 
 inline void
 removeUserFromGame (std::string const &userToRemove, durak::Game &game, std::vector<GameUser> &_gameUsers)
@@ -74,7 +78,7 @@ removeUserFromGame (std::string const &userToRemove, durak::Game &game, std::vec
     }
 }
 
-boost::asio::awaitable<void> inline runTimer (std::shared_ptr<boost::asio::steady_timer> timer, std::string const &accountName, durak::Game &game, std::vector<GameUser> &_gameUsers)
+boost::asio::awaitable<void> inline runTimer (std::shared_ptr<boost::asio::system_timer> timer, std::string const &accountName, durak::Game &game, std::vector<GameUser> &_gameUsers)
 {
   try
     {
@@ -97,6 +101,24 @@ boost::asio::awaitable<void> inline runTimer (std::shared_ptr<boost::asio::stead
     }
 }
 
+auto const sendTimer = [] (std::vector<GameUser> &_gameUsers) {
+  auto durakTimers = shared_class::DurakTimers{};
+  ranges::for_each (_gameUsers, [&durakTimers] (GameUser const &gameUser) {
+    if (gameUser._pausedTime)
+      {
+        durakTimers.pausedTimeUserDurationMilliseconds.push_back (std::make_pair (gameUser._user->accountName.value (), gameUser._pausedTime->count ()));
+      }
+    else
+      {
+        using namespace std::chrono;
+        std::cout << gameUser._timer->expiry ().time_since_epoch ().count () << std::endl;
+        durakTimers.runningTimeUserTimePointMilliseconds.push_back (std::make_pair (gameUser._user->accountName.value (), duration_cast<milliseconds> (gameUser._timer->expiry ().time_since_epoch ()).count ()));
+      }
+    gameUser._user->msgQueue.push_back (objectToStringWithObjectName (durakTimers));
+  });
+  ranges::for_each (_gameUsers, [&durakTimers] (auto const &gameUser) { gameUser._user->msgQueue.push_back (objectToStringWithObjectName (durakTimers)); });
+};
+
 auto const initTimerHandler = [] (durak::Game &game, std::vector<GameUser> &_gameUsers, TimerOption &timerOption, boost::sml::back::process<resumeTimer> process_event) {
   std::cout << "initTimerHandler" << std::endl;
   using namespace std::chrono;
@@ -114,7 +136,7 @@ auto const pauseTimerHandler = [] (pauseTimer const &pauseTimerEv, std::vector<G
     if (ranges::find (playersToPausetime, gameUser._user->accountName.value ()) != playersToPausetime.end ())
       {
         std::cout << " user:" << gameUser._user->accountName.value () << std::endl;
-        gameUser._pausedTime = duration_cast<milliseconds> (gameUser._timer->expiry () - steady_clock::now ());
+        gameUser._pausedTime = duration_cast<milliseconds> (gameUser._timer->expiry () - system_clock::now ());
         gameUser._timer->cancel ();
       }
   });
@@ -124,9 +146,9 @@ auto const nextRoundTimerHandler = [] (durak::Game &game, std::vector<GameUser> 
   std::cout << "nextRoundTimerHandler" << std::endl;
   using namespace std::chrono;
   ranges::for_each (_gameUsers, [&timerOption] (auto &gameUser) {
-    if (timerOption.timerType == TimerType::addTimeOnNewRound)
+    if (timerOption.timerType == shared_class::TimerType::addTimeOnNewRound)
       {
-        gameUser._pausedTime = timerOption.timeForEachRound + duration_cast<milliseconds> (gameUser._timer->expiry () - steady_clock::now ());
+        gameUser._pausedTime = timerOption.timeForEachRound + duration_cast<milliseconds> (gameUser._timer->expiry () - system_clock::now ());
       }
     else
       {
@@ -146,7 +168,16 @@ auto const resumeTimerHandler = [] (resumeTimer const &resumeTimerEv, durak::Gam
     if (ranges::find (playersToResume, gameUser._user->accountName.value ()) != playersToResume.end ())
       {
         std::cout << " user:" << gameUser._user->accountName.value () << std::endl;
-        gameUser._timer->expires_after (gameUser._pausedTime);
+        if (gameUser._pausedTime)
+          {
+            gameUser._timer->expires_after (gameUser._pausedTime.value ());
+          }
+        else
+          {
+            std::cout << "tried to resume but _pausedTime has no value" << std::endl;
+            // abort ();
+          }
+        gameUser._pausedTime = {};
         co_spawn (
             gameUser._timer->get_executor (), [_timer = gameUser._timer, accountName = gameUser._user->accountName.value (), &game, &_gameUsers] () { return runTimer (_timer, accountName, game, _gameUsers); }, boost::asio::detached);
       }
@@ -674,10 +705,10 @@ struct PassMachine
 , state<AskAttackAndAssist>     + event<assistRelog>                                      / askAssistAgain
 /*--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/      
 ,*"leaveGameHandler"_s          + event<leaveGame>                                        / userLeftGame                                
-,*"timerHandler"_s              + event<initTimer>              [timerActive]             / initTimerHandler                               
-, "timerHandler"_s              + event<nextRoundTimer>         [timerActive]             / nextRoundTimerHandler
-, "timerHandler"_s              + event<pauseTimer>             [timerActive]             / pauseTimerHandler
-, "timerHandler"_s              + event<resumeTimer>            [timerActive]             / resumeTimerHandler
+,*"timerHandler"_s              + event<initTimer>              [timerActive]             / (initTimerHandler,sendTimer)
+, "timerHandler"_s              + event<nextRoundTimer>         [timerActive]             / (nextRoundTimerHandler,sendTimer)
+, "timerHandler"_s              + event<pauseTimer>             [timerActive]             / (pauseTimerHandler,sendTimer)
+, "timerHandler"_s              + event<resumeTimer>            [timerActive]             / (resumeTimerHandler,sendTimer)
 // clang-format on   
     );
   }

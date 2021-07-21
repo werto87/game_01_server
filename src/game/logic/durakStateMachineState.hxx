@@ -3,6 +3,7 @@
 #include "durak/card.hxx"
 #include <boost/optional.hpp>
 #include <chrono>
+#include <game_01_shared_class/serialization.hxx>
 #include <optional>
 #include <queue>
 #include <string>
@@ -118,14 +119,14 @@ struct resumeTimer
 };
 enum struct TimerType
 {
+  noTimer,
   resetTimeOnNewRound,
-  addTimeOnNewRound,
-  noTimer
+  addTimeOnNewRound
 };
 
 struct TimerOption
 {
-  TimerType timerType{};
+  shared_class::TimerType timerType{};
   std::chrono::seconds timeAtStart{};
   std::chrono::seconds timeForEachRound{};
 };

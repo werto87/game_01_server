@@ -4,6 +4,7 @@
 #include "src/game/gameUser.hxx"
 #include "src/game/logic/durakStateMachine.hxx"
 #include <algorithm>
+#include <boost/asio/system_timer.hpp>
 #include <iterator>
 #include <range/v3/all.hpp>
 
@@ -11,7 +12,7 @@ struct GameMachine
 {
   GameMachine (std::vector<std::shared_ptr<User>> users, boost::asio::io_context &io_context, TimerOption const &timerOption) : durakStateMachine{ my_logger{}, PassAttackAndAssist{}, _game, _gameUsers, timerOption }
   {
-    ranges::transform (users, ranges::back_inserter (_gameUsers), [&io_context] (auto const &user) { return GameUser{ user, std::make_shared<boost::asio::steady_timer> (io_context) }; });
+    ranges::transform (users, ranges::back_inserter (_gameUsers), [&io_context] (auto const &user) { return GameUser{ user, std::make_shared<boost::asio::system_timer> (io_context) }; });
     auto names = std::vector<std::string>{};
     ranges::transform (_gameUsers, ranges::back_inserter (names), [] (auto const &gameUser) { return gameUser._user->accountName.value (); });
     _game = durak::Game{ std::move (names) };
@@ -20,7 +21,7 @@ struct GameMachine
 
   GameMachine (durak::Game const &game, std::vector<std::shared_ptr<User>> &users, boost::asio::io_context &io_context, TimerOption const &timerOption) : durakStateMachine{ my_logger{}, PassAttackAndAssist{}, _game, _gameUsers, timerOption }, _game{ game }
   {
-    ranges::transform (users, ranges::back_inserter (_gameUsers), [&io_context] (auto const &user) { return GameUser{ user, std::make_shared<boost::asio::steady_timer> (io_context) }; });
+    ranges::transform (users, ranges::back_inserter (_gameUsers), [&io_context] (auto const &user) { return GameUser{ user, std::make_shared<boost::asio::system_timer> (io_context) }; });
     durakStateMachine.process_event (initTimer{});
   }
 
