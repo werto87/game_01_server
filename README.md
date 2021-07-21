@@ -13,7 +13,8 @@ Note:
 Test the installation by running the following commands:
 - 'cmake --version'
 - 'conan --version'
-- 'clang --version'  
+- 'clang --version'
+
 If you get something like "command not found" please check your installation.
 
 ### Setup Conan Package Manager
