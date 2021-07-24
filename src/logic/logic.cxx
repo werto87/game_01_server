@@ -537,7 +537,8 @@ leaveGameLobby (std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys)
                                                    });
       gameLobbyWithAccount != gameLobbys.end ())
     {
-      if (gameLobbyWithAccount->removeUser (user))
+      gameLobbyWithAccount->removeUser (user);
+      if (gameLobbyWithAccount->accountCount () == 0)
         {
           gameLobbys.erase (gameLobbyWithAccount);
         }
@@ -548,6 +549,7 @@ leaveGameLobby (std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys)
           usersInGameLobby.name = gameLobbyWithAccount->gameLobbyName ();
           usersInGameLobby.durakGameOption.maxCardValue = gameLobbyWithAccount->gameOption.maxCardValue;
           ranges::transform (gameLobbyWithAccount->accountNames (), ranges::back_inserter (usersInGameLobby.users), [] (auto const &accountName) { return shared_class::UserInGameLobby{ accountName }; });
+          gameLobbyWithAccount->sendToAllAccountsInGameLobby (objectToStringWithObjectName (usersInGameLobby));
         }
       return objectToStringWithObjectName (shared_class::LeaveGameLobbySuccess{});
     }
