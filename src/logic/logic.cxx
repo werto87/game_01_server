@@ -613,7 +613,6 @@ relogTo (std::string const &objectAsString, std::shared_ptr<User> user, std::lis
         {
           gameWithUser->relogUser (user);
           user->msgQueue.push_back (objectToStringWithObjectName (shared_class::RelogToGameSuccess{}));
-
           auto gameData = gameWithUser->getGame ().getGameData ();
           if (auto playerRelog = ranges::find_if (gameData.players, [accountName = user->accountName.value ()] (auto const &player) { return player.name == accountName; }); playerRelog != gameData.players.end ())
             {
