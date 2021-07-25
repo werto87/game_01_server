@@ -584,9 +584,6 @@ relogTo (std::string const &objectAsString, std::shared_ptr<User> user, std::lis
         }
       else
         {
-          // TODO remove user from game
-          // logic only handles user does not want to relog to lobby but its possible he does not want to relog to game
-          // bug: after this user can not join a new game
           gameLobbyWithAccount->removeUser (user);
           if (gameLobbyWithAccount->accountCount () == 0)
             {
@@ -651,6 +648,7 @@ relogTo (std::string const &objectAsString, std::shared_ptr<User> user, std::lis
       else
         {
           gameWithUser->durakStateMachine.process_event (leaveGame{ user->accountName.value () });
+          gameMachines.erase (gameWithUser);
         }
     }
   else if (relogToObject.wantsToRelog)
@@ -771,10 +769,7 @@ durakLeaveGame (std::shared_ptr<User> user, std::list<GameMachine> &gameMachines
   if (auto gameMachine = ranges::find_if (gameMachines, [accountName = user->accountName.value ()] (GameMachine const &_game) { return ranges::find_if (_game.getGameUsers (), [&accountName] (auto const &gameUser) { return gameUser._user->accountName.value () == accountName; }) != _game.getGameUsers ().end (); }); gameMachine != gameMachines.end ())
     {
       gameMachine->durakStateMachine.process_event (leaveGame{ user->accountName.value () });
-      if (gameMachine->getGameUsers ().empty ())
-        {
-          gameMachines.erase (gameMachine);
-        }
+      gameMachines.erase (gameMachine);
     }
   else
     {
