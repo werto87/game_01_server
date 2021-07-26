@@ -35,6 +35,8 @@ stringToObject (std::string const &objectAsString)
 
 durak::GameData filterGameDataByAccountName (durak::GameData const &gameData, std::string const &accountName);
 
+void sendAvailableMoves (durak::Game const &game, std::vector<GameUser> const &_gameUsers);
+
 void sendGameDataToAccountsInGame (durak::Game const &game, std::vector<GameUser> const &_gameUsers);
 
 #endif /* EBD66723_6B6F_4460_A3DE_00AEB1E6D6B1 */

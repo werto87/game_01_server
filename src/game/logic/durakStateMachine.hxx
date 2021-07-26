@@ -161,7 +161,7 @@ auto const nextRoundTimerHandler = [] (durak::Game &game, std::vector<GameUser> 
       process_event (resumeTimer{ { attackingPlayer->id } });
     }
 };
-
+auto const sendAllowedMoves = [] (durak::Game &game, std::vector<GameUser> &_gameUsers) { sendAvailableMoves (game, _gameUsers); };
 auto const resumeTimerHandler = [] (resumeTimer const &resumeTimerEv, durak::Game &game, std::vector<GameUser> &_gameUsers) {
   std::cout << "resumeTimerHandler" << std::endl;
   ranges::for_each (_gameUsers, [&game, &_gameUsers, playersToResume = resumeTimerEv.playersToResume] (auto &gameUser) {
@@ -709,6 +709,7 @@ struct PassMachine
 , "timerHandler"_s              + event<nextRoundTimer>         [timerActive]             / (nextRoundTimerHandler,sendTimer)
 , "timerHandler"_s              + event<pauseTimer>             [timerActive]             / (pauseTimerHandler,sendTimer)
 , "timerHandler"_s              + event<resumeTimer>            [timerActive]             / (resumeTimerHandler,sendTimer)
+, "timerHandler"_s              + event<resendAllowedMoves>                               / sendAllowedMoves
 // clang-format on   
     );
   }

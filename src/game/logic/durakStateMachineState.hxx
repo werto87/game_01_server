@@ -131,4 +131,8 @@ struct TimerOption
   std::chrono::seconds timeForEachRound{};
 };
 
+struct resendAllowedMoves
+{
+};
+
 #endif /* A30C538C_58C3_49A5_8853_24519FACCE71 */

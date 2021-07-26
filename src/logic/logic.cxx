@@ -620,6 +620,7 @@ relogTo (std::string const &objectAsString, std::shared_ptr<User> user, std::lis
               user->msgQueue.push_back (objectToStringWithObjectName (filterGameDataByAccountName (gameData, user->accountName.value ())));
             }
           auto playerRole = gameWithUser->getGame ().getRoleForName (user->accountName.value ());
+          gameWithUser->durakStateMachine.process_event (resendAllowedMoves{});
           switch (playerRole)
             {
             case durak::PlayerRole::attack:
