@@ -1,6 +1,8 @@
 #include "src/server/gameLobby.hxx"
 #include <algorithm>
 #include <iterator>
+#include <range/v3/algorithm/any_of.hpp>
+#include <range/v3/algorithm/count_if.hpp>
 #include <stdexcept>
 std::optional<std::string>
 GameLobby::setMaxUserCount (size_t userMaxCount)
@@ -55,17 +57,24 @@ GameLobby::gameLobbyName () const
   return _name;
 }
 
-bool
+std::optional<std::string>
 GameLobby::tryToAddUser (std::shared_ptr<User> const &user)
 {
   if (_maxUserCount > _users.size ())
     {
-      _users.push_back (user);
-      return true;
+      if (ranges::none_of (_users, [accountName = user->accountName.value ()] (std::shared_ptr<User> const &user) { return user->accountName == accountName; }))
+        {
+          _users.push_back (user);
+          return {};
+        }
+      else
+        {
+          return "User allready in lobby with user name: " + user->accountName.value ();
+        }
     }
   else
     {
-      return false;
+      return "Lobby full";
     }
 }
 

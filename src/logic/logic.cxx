@@ -397,6 +397,10 @@ createGameLobby (std::string const &objectAsString, std::shared_ptr<User> user, 
           auto &newGameLobby = gameLobbys.emplace_back (GameLobby{ createGameLobbyObject.name, createGameLobbyObject.password });
           if (newGameLobby.tryToAddUser (user))
             {
+              throw std::logic_error{ "user can not join lobby which he created" };
+            }
+          else
+            {
               auto result = std::vector<std::string>{};
               auto usersInGameLobby = shared_class::UsersInGameLobby{};
               usersInGameLobby.maxUserSize = newGameLobby.maxUserCount ();
@@ -406,10 +410,6 @@ createGameLobby (std::string const &objectAsString, std::shared_ptr<User> user, 
               result.push_back (objectToStringWithObjectName (shared_class::JoinGameLobbySuccess{}));
               result.push_back (objectToStringWithObjectName (usersInGameLobby));
               return result;
-            }
-          else
-            {
-              throw std::logic_error{ "user can not join lobby which he created" };
             }
         }
     }
@@ -422,10 +422,15 @@ createGameLobby (std::string const &objectAsString, std::shared_ptr<User> user, 
 std::optional<std::string>
 joinGameLobby (std::string const &objectAsString, std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys)
 {
+  // TODO check if it possible to double join a game lobby
   auto joinGameLobbyObject = stringToObject<shared_class::JoinGameLobby> (objectAsString);
   if (auto gameLobby = ranges::find_if (gameLobbys, [gameLobbyName = joinGameLobbyObject.name, lobbyPassword = joinGameLobbyObject.password] (auto const &_gameLobby) { return _gameLobby.gameLobbyName () == gameLobbyName && _gameLobby.gameLobbyPassword () == lobbyPassword; }); gameLobby != gameLobbys.end ())
     {
-      if (gameLobby->tryToAddUser (user))
+      if (auto error = gameLobby->tryToAddUser (user))
+        {
+          return objectToStringWithObjectName (shared_class::JoinGameLobbyError{ joinGameLobbyObject.name, error.value () });
+        }
+      else
         {
           user->msgQueue.push_back (objectToStringWithObjectName (shared_class::JoinGameLobbySuccess{}));
           auto usersInGameLobby = shared_class::UsersInGameLobby{};
@@ -436,10 +441,6 @@ joinGameLobby (std::string const &objectAsString, std::shared_ptr<User> user, st
           gameLobby->sendToAllAccountsInGameLobby (objectToStringWithObjectName (usersInGameLobby));
           gameLobby->sendToAllAccountsInGameLobby (objectToStringWithObjectName (shared_class::SetTimerOption{ gameLobby->timerOption.timerType, boost::numeric_cast<int> (gameLobby->timerOption.timeAtStart.count ()), boost::numeric_cast<int> (gameLobby->timerOption.timeForEachRound.count ()) }));
           return {};
-        }
-      else
-        {
-          return objectToStringWithObjectName (shared_class::JoinGameLobbyError{ joinGameLobbyObject.name, "lobby full" });
         }
     }
   else
