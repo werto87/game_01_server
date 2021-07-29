@@ -1,5 +1,5 @@
 # Modern Durak Server
-Server which allows Modern Durak Clients to connect.
+Server which allows [Modern Durak Clients](https://github.com/werto87/game_01_client) to connect.
 
 ## How to build the Mordern Durak Server 
 Note: 
