@@ -12,6 +12,7 @@ namespace database
 {
 void createEmptyDatabase ();
 void createTables ();
+void createDatabaseIfNotExist ();
 
 boost::optional<database::Account> createAccount (std::string const &accountName, std::string const &password);
 }

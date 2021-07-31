@@ -6,12 +6,20 @@
 #include "src/server/gameLobby.hxx"
 #include "src/server/user.hxx"
 #include <boost/asio.hpp>
+#include <boost/asio/io_context.hpp>
+#include <boost/asio/ssl.hpp>
 #include <boost/beast.hpp>
+#include <boost/beast/ssl.hpp>
+#include <boost/beast/websocket.hpp>
+#include <boost/beast/websocket/ssl.hpp>
 #include <cstddef>
 #include <list>
 #include <memory>
 #include <queue>
 #include <string>
+
+typedef boost::beast::websocket::stream<boost::beast::ssl_stream<boost::beast::tcp_stream>> SSLWebsocket;
+
 class Server
 {
 public:
@@ -21,11 +29,11 @@ public:
 
 private:
   void removeUser (std::list<std::shared_ptr<User>>::iterator user);
-  boost::asio::awaitable<std::string> my_read (boost::beast::websocket::stream<boost::beast::tcp_stream> &ws_);
+  boost::asio::awaitable<std::string> my_read (SSLWebsocket &ws_);
 
-  boost::asio::awaitable<void> readFromClient (std::list<std::shared_ptr<User>>::iterator user, boost::beast::websocket::stream<boost::beast::tcp_stream> &connection);
+  boost::asio::awaitable<void> readFromClient (std::list<std::shared_ptr<User>>::iterator user, SSLWebsocket &connection);
 
-  boost::asio::awaitable<void> writeToClient (std::shared_ptr<User> user, boost::beast::websocket::stream<boost::beast::tcp_stream> &connection);
+  boost::asio::awaitable<void> writeToClient (std::shared_ptr<User> user, SSLWebsocket &connection);
 
   boost::asio::io_context &_io_context;
   boost::asio::thread_pool &_pool;

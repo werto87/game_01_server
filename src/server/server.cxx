@@ -9,8 +9,13 @@
 #include <boost/archive/text_oarchive.hpp>
 #include <boost/asio.hpp>
 #include <boost/asio/io_context.hpp>
+#include <boost/asio/ssl.hpp>
 #include <boost/beast.hpp>
+#include <boost/beast/ssl.hpp>
 #include <boost/beast/websocket.hpp>
+#include <boost/beast/websocket/ssl.hpp>
+#include <boost/certify/extensions.hpp>
+#include <boost/certify/https_verification.hpp>
 #include <boost/date_time/posix_time/posix_time_duration.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/optional.hpp>
@@ -33,13 +38,19 @@
 #include <tuple>
 #include <type_traits>
 
+namespace net = boost::asio;
+namespace beast = boost::beast;
 using namespace boost::beast;
 using namespace boost::asio;
-
+namespace beast = boost::beast;   // from <boost/beast.hpp>
+namespace http = beast::http;     // from <boost/beast/http.hpp>
+namespace net = boost::asio;      // from <boost/asio.hpp>
+namespace ssl = boost::asio::ssl; // from <boost/asio/ssl.hpp>
+using tcp = boost::asio::ip::tcp; // from <boost/asio/ip/tcp.hpp>
 Server::Server (boost::asio::io_context &io_context, boost::asio::thread_pool &pool, boost::asio::ip::tcp::endpoint const &endpoint) : _io_context{ io_context }, _pool{ pool }, _endpoint{ endpoint } {}
 
 awaitable<std::string>
-Server::my_read (websocket::stream<tcp_stream> &ws_)
+Server::my_read (SSLWebsocket &ws_)
 {
   std::cout << "read" << std::endl;
   flat_buffer buffer;
@@ -50,7 +61,7 @@ Server::my_read (websocket::stream<tcp_stream> &ws_)
 }
 
 awaitable<void>
-Server::readFromClient (std::list<std::shared_ptr<User>>::iterator user, boost::beast::websocket::stream<boost::beast::tcp_stream> &connection)
+Server::readFromClient (std::list<std::shared_ptr<User>>::iterator user, SSLWebsocket &connection)
 {
   try
     {
@@ -84,7 +95,7 @@ Server::removeUser (std::list<std::shared_ptr<User>>::iterator user)
 }
 
 awaitable<void>
-Server::writeToClient (std::shared_ptr<User> user, boost::beast::websocket::stream<boost::beast::tcp_stream> &connection)
+Server::writeToClient (std::shared_ptr<User> user, SSLWebsocket &connection)
 {
   try
     {
@@ -114,15 +125,75 @@ Server::listener ()
 {
   auto executor = co_await this_coro::executor;
   ip::tcp::acceptor acceptor (executor, _endpoint);
+  net::ssl::context ctx (net::ssl::context::tls_server);
+  ctx.set_verify_mode (ssl::context::verify_peer);
+  ctx.set_default_verify_paths ();
+  // TODO change the paths so they match with the cert paths on modern-durak certificates deploy it profit??
+#ifdef DEBUG
+  ctx.use_certificate_chain_file ("/home/walde/certificate/otherTestCert/cert.pem");
+  ctx.use_private_key_file ("/home/walde/certificate/otherTestCert/cert.pem", boost::asio::ssl::context::pem);
+  ctx.use_tmp_dh_file ("/home/walde/certificate/otherTestCert/dh2048.pem");
+#else
+  try
+    {
+      ctx.use_certificate_chain_file ("/etc/letsencrypt/live/www.modern-durak.com/fullchain.pem");
+    }
+  catch (std::exception &e)
+    {
+      std::cout << "fullchain1  Exception : " << e.what () << std::endl;
+    }
+  try
+    {
+      ctx.use_private_key_file ("/etc/letsencrypt/live/www.modern-durak.com/privkey.pem", boost::asio::ssl::context::pem);
+    }
+  catch (std::exception &e)
+    {
+      std::cout << "fullchain2  Exception : " << e.what () << std::endl;
+    }
+  try
+    {
+      ctx.use_tmp_dh_file ("/etc/letsencrypt/live/www.modern-durak.com/dh2048.pem");
+    }
+  catch (std::exception &e)
+    {
+      std::cout << "certificate  Exception : " << e.what () << std::endl;
+    }
+
+#endif
+  boost::certify::enable_native_https_server_verification (ctx);
   for (;;)
     {
+      std::cout << "before async_accept" << std::endl;
       ip::tcp::socket socket = co_await acceptor.async_accept (use_awaitable);
-      auto connection = std::make_shared<boost::beast::websocket::stream<boost::beast::tcp_stream>> (std::move (socket));
+      std::cout << "after async_accept" << std::endl;
+      auto connection = std::make_shared<SSLWebsocket> (std::move (socket), ctx);
       users.emplace_back (std::make_shared<User> (User{ {}, {}, {} }));
       std::list<std::shared_ptr<User>>::iterator user = std::next (users.end (), -1);
+
       connection->set_option (websocket::stream_base::timeout::suggested (role_type::server));
       connection->set_option (websocket::stream_base::decorator ([] (websocket::response_type &res) { res.set (http::field::server, std::string (BOOST_BEAST_VERSION_STRING) + " websocket-server-async"); }));
-      co_await connection->async_accept (use_awaitable);
+      // ich glaube wir brauchen hier etwas mit certificate
+      // nur weil die domain also modern-durak.com ein certificate wegen ssl hat heisst das nicht das unser server auch ein certificate hat
+      // ich glaube wir brauchen das gleiche wie bei der domain fuer den server
+      // TODO FIX THIS EXCEPTIONS PLX:
+      // async_handshake  Exception: no shared cipher
+      // async_accept  Exception: unspecified system error
+      try
+        {
+          co_await connection->next_layer ().async_handshake (ssl::stream_base::server, use_awaitable);
+        }
+      catch (std::exception &e)
+        {
+          std::cout << "async_handshake  Exception : " << e.what () << std::endl;
+        }
+      try
+        {
+          co_await connection->async_accept (use_awaitable);
+        }
+      catch (std::exception &e)
+        {
+          std::cout << "async_accept  Exception: " << e.what () << std::endl;
+        }
       co_spawn (
           executor, [connection, this, &user] () mutable { return readFromClient (user, *connection); }, detached);
       co_spawn (

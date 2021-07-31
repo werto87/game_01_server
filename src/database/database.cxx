@@ -14,21 +14,52 @@ namespace database
 void
 createEmptyDatabase ()
 {
-  std::filesystem::create_directory (std::filesystem::path{ pathToTestDatabase }.parent_path ());
-  std::filesystem::copy_file (pathToTemplateDatabase, pathToTestDatabase, std::filesystem::copy_options::overwrite_existing);
+  std::filesystem::remove (databaseName.c_str ());
+  using namespace sqlite_api;
+  sqlite3 *db;
+  int rc;
+  rc = sqlite3_open (databaseName.c_str (), &db);
+  if (rc)
+    {
+      fprintf (stderr, "Can't open database: %s\n", sqlite3_errmsg (db));
+      return;
+    }
+  sqlite3_close (db);
+}
+
+void
+createDatabaseIfNotExist ()
+{
+  using namespace sqlite_api;
+  sqlite3 *db;
+  int rc;
+  rc = sqlite3_open (databaseName.c_str (), &db);
+  if (rc)
+    {
+      fprintf (stderr, "Can't open database: %s\n", sqlite3_errmsg (db));
+      return;
+    }
+  sqlite3_close (db);
 }
 
 void
 createTables ()
 {
-  soci::session sql (soci::sqlite3, pathToTestDatabase);
-  confu_soci::createTableForStruct<Account> (sql);
+  soci::session sql (soci::sqlite3, databaseName);
+  try
+    {
+      confu_soci::createTableForStruct<Account> (sql);
+    }
+  catch (soci::soci_error const &error)
+    {
+      std::cout << error.get_error_message () << std::endl;
+    }
 }
 
 boost::optional<Account>
 createAccount (std::string const &accountName, std::string const &password)
 {
-  soci::session sql (soci::sqlite3, pathToTestDatabase);
+  soci::session sql (soci::sqlite3, databaseName);
   return confu_soci::findStruct<Account> (sql, "accountName", confu_soci::insertStruct (sql, Account{ accountName, password }, true));
 }
 

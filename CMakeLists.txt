@@ -1,8 +1,8 @@
 #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -fcoroutines")
 #set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -g -fuse-ld=lld -fcoroutines")
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g  -std=c++20 -stdlib=libc++")
-set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -g  -std=c++20 -stdlib=libc++ -lc++abi")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}  -std=c++20 -stdlib=libc++")
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -std=c++20 -stdlib=libc++ -lc++abi")
 
 #set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fcoroutines -v")
 cmake_minimum_required(VERSION 3.17)
@@ -66,6 +66,7 @@ CONAN_PKG::confu_json
 CONAN_PKG::libsodium
 CONAN_PKG::game_01_shared_class
 CONAN_PKG::sml
+CONAN_PKG::certify
 )
 
 ####### create executable
@@ -79,7 +80,8 @@ ENDIF(BUILD_TESTS)
 target_sources(${TARGET_NAME} PRIVATE 
 "main.cxx"
 )
- 
+
+# TODO if we build for release we need to create the database on first start
 if (CMAKE_BINARY_DIR)
 target_compile_definitions(${TARGET_NAME} PRIVATE PATH_TO_BINARY="${CMAKE_BINARY_DIR}")
 endif()

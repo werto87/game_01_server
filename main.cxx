@@ -35,7 +35,12 @@ main (int argc, char *argv[])
           std::terminate ();
           /* panic! the library couldn't be initialized, it is not safe to use */
         }
+
+#ifdef DEBUG
       database::createEmptyDatabase ();
+#else
+      database::createDatabaseIfNotExist ();
+#endif
       database::createTables ();
       using namespace boost::asio;
       io_context io_context (1);

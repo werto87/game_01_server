@@ -193,7 +193,7 @@ boost::asio::awaitable<std::string>
 createAccountAndLogin (std::string objectAsString, boost::asio::io_context &io_context, std::shared_ptr<User> user, boost::asio::thread_pool &pool)
 {
   auto createAccountObject = stringToObject<shared_class::CreateAccount> (objectAsString);
-  soci::session sql (soci::sqlite3, pathToTestDatabase);
+  soci::session sql (soci::sqlite3, databaseName);
   if (confu_soci::findStruct<database::Account> (sql, "accountName", createAccountObject.accountName))
     {
       co_return objectToStringWithObjectName (shared_class::CreateAccountError{ createAccountObject.accountName, "account already created" });
@@ -224,7 +224,7 @@ boost::asio::awaitable<std::string>
 loginAccount (std::string objectAsString, boost::asio::io_context &io_context, std::list<std::shared_ptr<User>> &users, std::shared_ptr<User> user, boost::asio::thread_pool &pool, std::list<GameLobby> &gameLobbys, std::list<GameMachine> &gameMachines)
 {
   auto loginAccountObject = stringToObject<shared_class::LoginAccount> (objectAsString);
-  soci::session sql (soci::sqlite3, pathToTestDatabase);
+  soci::session sql (soci::sqlite3, databaseName);
   if (auto account = confu_soci::findStruct<database::Account> (sql, "accountName", loginAccountObject.accountName))
     {
       if (std::find_if (users.begin (), users.end (), [accountName = account->accountName] (auto const &u) { return accountName == u->accountName; }) != users.end ())
@@ -298,7 +298,7 @@ broadCastMessage (std::string const &objectAsString, std::list<std::shared_ptr<U
     {
       for (auto &user : users | ranges::views::filter ([channel = broadCastMessageObject.channel, accountName = sendingUser.accountName] (auto const &user) { return user->communicationChannels.find (channel) != user->communicationChannels.end (); }))
         {
-          soci::session sql (soci::sqlite3, pathToTestDatabase);
+          soci::session sql (soci::sqlite3, databaseName);
           auto message = shared_class::Message{ sendingUser.accountName.value (), broadCastMessageObject.channel, broadCastMessageObject.message };
           user->msgQueue.push_back (objectToStringWithObjectName (std::move (message)));
         }
