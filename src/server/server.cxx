@@ -31,6 +31,8 @@
 #include <cstddef>
 #include <experimental/coroutine>
 #include <iostream>
+#include <memory>
+#include <openssl/ssl.h>
 #include <sodium.h>
 #include <sstream>
 #include <stdexcept>
@@ -67,6 +69,7 @@ Server::readFromClient (std::list<std::shared_ptr<User>>::iterator user, SSLWebs
     {
       for (;;)
         {
+          // use this to simulate lag
           // auto timer = steady_timer (co_await this_coro::executor);
           // using namespace std::chrono_literals;
           // timer.expires_after (10s);
@@ -78,8 +81,8 @@ Server::readFromClient (std::list<std::shared_ptr<User>>::iterator user, SSLWebs
     }
   catch (std::exception &e)
     {
-      std::cout << "echo  Exception: " << e.what () << std::endl;
       removeUser (user);
+      std::cout << "read Exception: " << e.what () << std::endl;
     }
 }
 
@@ -95,28 +98,28 @@ Server::removeUser (std::list<std::shared_ptr<User>>::iterator user)
 }
 
 awaitable<void>
-Server::writeToClient (std::shared_ptr<User> user, SSLWebsocket &connection)
+Server::writeToClient (std::shared_ptr<User> user, std::weak_ptr<SSLWebsocket> &connection)
 {
   try
     {
-      for (;;)
+      while (not connection.expired ())
         {
           auto timer = steady_timer (co_await this_coro::executor);
-          auto const waitForNewMessagesToSend = std::chrono::milliseconds{ 10 };
+          auto const waitForNewMessagesToSend = std::chrono::milliseconds{ 100 };
           timer.expires_after (waitForNewMessagesToSend);
           co_await timer.async_wait (use_awaitable);
-          while (not user->msgQueue.empty ())
+          while (not user->msgQueue.empty () && not connection.expired ())
             {
               auto tmpMsg = std::move (user->msgQueue.front ());
               std::cout << "send msg: " << tmpMsg << std::endl;
               user->msgQueue.pop_front ();
-              co_await connection.async_write (buffer (tmpMsg), use_awaitable);
+              co_await connection.lock ()->async_write (buffer (tmpMsg), use_awaitable);
             }
         }
     }
   catch (std::exception &e)
     {
-      std::cout << "echo  Exception: " << e.what () << std::endl;
+      std::cout << "write Exception: " << e.what () << std::endl;
     }
 }
 
@@ -128,7 +131,7 @@ Server::listener ()
   net::ssl::context ctx (net::ssl::context::tls_server);
   ctx.set_verify_mode (ssl::context::verify_peer);
   ctx.set_default_verify_paths ();
-  // TODO change the paths so they match with the cert paths on modern-durak certificates deploy it profit??
+
 #ifdef DEBUG
   ctx.use_certificate_chain_file ("/home/walde/certificate/otherTestCert/cert.pem");
   ctx.use_private_key_file ("/home/walde/certificate/otherTestCert/cert.pem", boost::asio::ssl::context::pem);
@@ -136,67 +139,52 @@ Server::listener ()
 #else
   try
     {
-      ctx.use_certificate_chain_file ("/etc/letsencrypt/live/www.modern-durak.com/fullchain.pem");
+      ctx.use_certificate_chain_file ("/etc/letsencrypt/live/modern-durak.com/fullchain.pem");
     }
   catch (std::exception &e)
     {
-      std::cout << "fullchain1  Exception : " << e.what () << std::endl;
+      std::cout << "load fullchain  Exception : " << e.what () << std::endl;
     }
   try
     {
-      ctx.use_private_key_file ("/etc/letsencrypt/live/www.modern-durak.com/privkey.pem", boost::asio::ssl::context::pem);
+      ctx.use_private_key_file ("/etc/letsencrypt/live/modern-durak.com/privkey.pem", boost::asio::ssl::context::pem);
     }
   catch (std::exception &e)
     {
-      std::cout << "fullchain2  Exception : " << e.what () << std::endl;
+      std::cout << "load privkey  Exception : " << e.what () << std::endl;
     }
   try
     {
-      ctx.use_tmp_dh_file ("/etc/letsencrypt/live/www.modern-durak.com/dh2048.pem");
+      ctx.use_tmp_dh_file ("/etc/letsencrypt/live/modern-durak.com/dh2048.pem");
     }
   catch (std::exception &e)
     {
-      std::cout << "certificate  Exception : " << e.what () << std::endl;
+      std::cout << "load dh2048  Exception : " << e.what () << std::endl;
     }
 
 #endif
   boost::certify::enable_native_https_server_verification (ctx);
+  ctx.set_options (SSL_SESS_CACHE_OFF | SSL_OP_NO_TICKET); //  disable ssl cache. It has a bad support in boost asio/beast and I do not know if it helps in performance in our usecase
   for (;;)
     {
-      std::cout << "before async_accept" << std::endl;
-      ip::tcp::socket socket = co_await acceptor.async_accept (use_awaitable);
-      std::cout << "after async_accept" << std::endl;
-      auto connection = std::make_shared<SSLWebsocket> (std::move (socket), ctx);
-      users.emplace_back (std::make_shared<User> (User{ {}, {}, {} }));
-      std::list<std::shared_ptr<User>>::iterator user = std::next (users.end (), -1);
-
-      connection->set_option (websocket::stream_base::timeout::suggested (role_type::server));
-      connection->set_option (websocket::stream_base::decorator ([] (websocket::response_type &res) { res.set (http::field::server, std::string (BOOST_BEAST_VERSION_STRING) + " websocket-server-async"); }));
-      // ich glaube wir brauchen hier etwas mit certificate
-      // nur weil die domain also modern-durak.com ein certificate wegen ssl hat heisst das nicht das unser server auch ein certificate hat
-      // ich glaube wir brauchen das gleiche wie bei der domain fuer den server
-      // TODO FIX THIS EXCEPTIONS PLX:
-      // async_handshake  Exception: no shared cipher
-      // async_accept  Exception: unspecified system error
       try
         {
+          auto socket = co_await acceptor.async_accept (use_awaitable);
+          auto connection = std::make_shared<SSLWebsocket> (std::move (socket), ctx);
+          users.emplace_back (std::make_shared<User> (User{ {}, {}, {} }));
+          std::list<std::shared_ptr<User>>::iterator user = std::next (users.end (), -1);
+          connection->set_option (websocket::stream_base::timeout::suggested (role_type::server));
+          connection->set_option (websocket::stream_base::decorator ([] (websocket::response_type &res) { res.set (http::field::server, std::string (BOOST_BEAST_VERSION_STRING) + " websocket-server-async"); }));
           co_await connection->next_layer ().async_handshake (ssl::stream_base::server, use_awaitable);
-        }
-      catch (std::exception &e)
-        {
-          std::cout << "async_handshake  Exception : " << e.what () << std::endl;
-        }
-      try
-        {
           co_await connection->async_accept (use_awaitable);
+          co_spawn (
+              executor, [connection, this, &user] () mutable { return readFromClient (user, *connection); }, detached);
+          co_spawn (
+              executor, [connectionWeakPointer = std::weak_ptr<SSLWebsocket>{ connection }, this, &user] () mutable { return writeToClient (*user, connectionWeakPointer); }, detached);
         }
       catch (std::exception &e)
         {
-          std::cout << "async_accept  Exception: " << e.what () << std::endl;
+          std::cout << "Server::listener () connect  Exception : " << e.what () << std::endl;
         }
-      co_spawn (
-          executor, [connection, this, &user] () mutable { return readFromClient (user, *connection); }, detached);
-      co_spawn (
-          executor, [connection, this, &user] () mutable { return writeToClient (*user, *connection); }, detached);
     }
 }

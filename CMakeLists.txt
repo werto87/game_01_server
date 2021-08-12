@@ -34,8 +34,8 @@ target_compile_features(${PROJECT_OPTIONS} INTERFACE cxx_std_20)
 # )
 
 
-include(cmake/Sanitizers.cmake)
-enable_sanitizers(${PROJECT_OPTIONS})
+#include(cmake/Sanitizers.cmake)
+#enable_sanitizers(${PROJECT_OPTIONS})
 
 #allow for static analysis options
 include(cmake/StaticAnalyzers.cmake) 
