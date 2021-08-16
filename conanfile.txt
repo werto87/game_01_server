@@ -1,6 +1,6 @@
 [requires]
 #range-v3/0.11.0
-certify/0.0.1
+certify/0.0.1@werto87/stable
 boost/1.76.0
 confu_soci/0.2.0@werto87/stable
 libsodium/1.0.18
@@ -13,3 +13,4 @@ magic_enum/0.7.2
 cmake
 [options]
 boost:header_only=True
+soci:with_sqlite3=True
