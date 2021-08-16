@@ -10,7 +10,6 @@ jobs:
 
   Build-Push-Docker-Image:
     runs-on: ubuntu-latest
-    needs: build
     name: Tag, Push
 
     steps:
