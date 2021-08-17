@@ -147,7 +147,7 @@ Server::listener ()
     }
   catch (std::exception &e)
     {
-      std::cout << "load fullchain  " << pathToChainFile << ": " << e.what () << std::endl;
+      std::cout << "load fullchain: " << pathToChainFile << " exception : " << e.what () << std::endl;
     }
   try
     {
@@ -155,7 +155,7 @@ Server::listener ()
     }
   catch (std::exception &e)
     {
-      std::cout << "load privkey  " << pathToPrivateFile << ": " << e.what () << std::endl;
+      std::cout << "load privkey: " << pathToPrivateFile << " exception : " << e.what () << std::endl;
     }
   try
     {
@@ -163,7 +163,7 @@ Server::listener ()
     }
   catch (std::exception &e)
     {
-      std::cout << "load dh2048  " << pathToTmpDhFile << ": " << e.what () << std::endl;
+      std::cout << "load dh2048: " << pathToTmpDhFile << " exception : " << e.what () << std::endl;
     }
 
   boost::certify::enable_native_https_server_verification (ctx);
