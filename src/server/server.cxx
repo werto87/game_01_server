@@ -133,36 +133,39 @@ Server::listener ()
   ctx.set_default_verify_paths ();
 
 #ifdef DEBUG
-  ctx.use_certificate_chain_file ("/home/walde/certificate/otherTestCert/cert.pem");
-  ctx.use_private_key_file ("/home/walde/certificate/otherTestCert/cert.pem", boost::asio::ssl::context::pem);
-  ctx.use_tmp_dh_file ("/home/walde/certificate/otherTestCert/dh2048.pem");
+  auto const pathToChainFile = std::string{ "/home/walde/certificate/otherTestCert/cert.pem" };
+  auto const pathToPrivateFile = std::string{ "/home/walde/certificate/otherTestCert/cert.pem" };
+  auto const pathToTmpDhFile = std::string{ "/home/walde/certificate/otherTestCert/dh2048.pem" };
 #else
+  auto const pathToChainFile = std::string{ "/secret/tls/fullchain.pem" };
+  auto const pathToPrivateFile = std::string{ "/secret/tls/privkey.pem" };
+  auto const pathToTmpDhFile = std::string{ "/secret/tls/dh2048.pem" };
+#endif
   try
     {
-      ctx.use_certificate_chain_file ("/etc/letsencrypt/live/modern-durak.com/fullchain.pem");
+      ctx.use_certificate_chain_file (pathToChainFile);
     }
   catch (std::exception &e)
     {
-      std::cout << "load fullchain  Exception : " << e.what () << std::endl;
+      std::cout << "load fullchain  " << pathToChainFile << ": " << e.what () << std::endl;
     }
   try
     {
-      ctx.use_private_key_file ("/etc/letsencrypt/live/modern-durak.com/privkey.pem", boost::asio::ssl::context::pem);
+      ctx.use_private_key_file (pathToPrivateFile, boost::asio::ssl::context::pem);
     }
   catch (std::exception &e)
     {
-      std::cout << "load privkey  Exception : " << e.what () << std::endl;
+      std::cout << "load privkey  " << pathToPrivateFile << ": " << e.what () << std::endl;
     }
   try
     {
-      ctx.use_tmp_dh_file ("/etc/letsencrypt/live/modern-durak.com/dh2048.pem");
+      ctx.use_tmp_dh_file (pathToTmpDhFile);
     }
   catch (std::exception &e)
     {
-      std::cout << "load dh2048  Exception : " << e.what () << std::endl;
+      std::cout << "load dh2048  " << pathToTmpDhFile << ": " << e.what () << std::endl;
     }
 
-#endif
   boost::certify::enable_native_https_server_verification (ctx);
   ctx.set_options (SSL_SESS_CACHE_OFF | SSL_OP_NO_TICKET); //  disable ssl cache. It has a bad support in boost asio/beast and I do not know if it helps in performance in our usecase
   for (;;)
