@@ -1,7 +1,10 @@
 # Modern Durak Server
 Server which allows [Modern Durak Clients](https://github.com/werto87/game_01_client) to connect.
 
-## How to build the Mordern Durak Server 
+## Easy way to run Modern Durak Server with using Docker
+- get the docker image by running 'docker pull ghcr.io/werto87/game_01_server/modern-durak-server:latest'
+
+## How to build the Mordern Durak Server from source
 Note: 
 - Only tested on linux
 ### Prerequisite
