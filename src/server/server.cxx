@@ -133,8 +133,8 @@ Server::listener ()
   ctx.set_default_verify_paths ();
 
 #ifdef DEBUG
-  auto const pathToChainFile = std::string{ "/home/walde/certificate/otherTestCert/cert.pem" };
-  auto const pathToPrivateFile = std::string{ "/home/walde/certificate/otherTestCert/cert.pem" };
+  auto const pathToChainFile = std::string{ "/home/walde/certificate/otherTestCert/fullchain.pem" };
+  auto const pathToPrivateFile = std::string{ "/home/walde/certificate/otherTestCert/privkey.pem" };
   auto const pathToTmpDhFile = std::string{ "/home/walde/certificate/otherTestCert/dh2048.pem" };
 #else
   auto const pathToChainFile = std::string{ "/secret/tls/fullchain.pem" };
