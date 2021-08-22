@@ -15,6 +15,10 @@ void
 createEmptyDatabase ()
 {
   std::filesystem::remove (databaseName.c_str ());
+  if (not std::filesystem::exists ("database"))
+    {
+      std::filesystem::create_directory ("database");
+    }
   using namespace sqlite_api;
   sqlite3 *db;
   int rc;
@@ -31,6 +35,10 @@ void
 createDatabaseIfNotExist ()
 {
   using namespace sqlite_api;
+  if (not std::filesystem::exists ("database"))
+    {
+      std::filesystem::create_directory ("database");
+    }
   sqlite3 *db;
   int rc;
   rc = sqlite3_open (databaseName.c_str (), &db);
