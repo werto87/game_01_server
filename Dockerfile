@@ -34,6 +34,3 @@ COPY --from=0 /usr/lib/x86_64-linux-gnu/libatomic.so.1 /lib
 COPY --from=0 /server/build/bin/project /server/project
 
 CMD [ "/server/project"]
-
-
-#TODO do not forget to add a way to provide secrets maybe with virtual files
