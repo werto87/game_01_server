@@ -183,8 +183,12 @@ handleMessage (std::string const &msg, boost::asio::io_context &io_context, boos
       else
         {
           std::cout << "could not find a match for typeToSearch '" << typeToSearch << "'" << std::endl;
-          result.push_back ("error|unhandled message: " + msg);
+          result.push_back ("error|unhandledMessage: \"" + msg + "\"");
         }
+    }
+  else
+    {
+      result.push_back ("error|unhandledMessage: \"" + msg + "\"");
     }
   co_return result;
 }
