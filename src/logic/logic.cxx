@@ -182,13 +182,14 @@ handleMessage (std::string const &msg, boost::asio::io_context &io_context, boos
         }
       else
         {
-          std::cout << "could not find a match for typeToSearch '" << typeToSearch << "'" << std::endl;
-          result.push_back ("error|unhandledMessage: \"" + msg + "\"");
+          std::cout << "UnhandledMessage|{message: \"" << msg << "\"}" << std::endl;
+          result.push_back ("UnhandledMessage|{message: \"" + msg + "\"}");
         }
     }
   else
     {
-      result.push_back ("error|unhandledMessage: \"" + msg + "\"");
+      std::cout << "UnhandledMessage|{message: \"" << msg << "\"}" << std::endl;
+      result.push_back ("UnhandledMessage|{message: \"" + msg + "\"}");
     }
   co_return result;
 }
