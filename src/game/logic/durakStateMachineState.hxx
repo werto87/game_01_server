@@ -135,4 +135,8 @@ struct resendAllowedMoves
 {
 };
 
+struct start
+{
+};
+
 #endif /* A30C538C_58C3_49A5_8853_24519FACCE71 */

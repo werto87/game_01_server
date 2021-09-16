@@ -457,6 +457,7 @@ joinGameLobby (std::string const &objectAsString, std::shared_ptr<User> user, st
 std::optional<std::string>
 setMaxUserSizeInCreateGameLobby (std::string const &objectAsString, std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys)
 {
+  // TODO It should not be possible for the none admin to change settings in the create game lobby
   auto setMaxUserSizeInCreateGameLobbyObject = stringToObject<shared_class::SetMaxUserSizeInCreateGameLobby> (objectAsString);
   auto accountNameToSearch = user->accountName.value ();
   if (auto gameLobbyWithAccount = ranges::find_if (gameLobbys,
@@ -485,6 +486,7 @@ setMaxUserSizeInCreateGameLobby (std::string const &objectAsString, std::shared_
 std::optional<std::string>
 setMaxCardValueInCreateGameLobby (std::string const &objectAsString, std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys)
 {
+  // TODO It should not be possible for the none admin to change settings in the create game lobby
   auto setMaxCardValueInCreateGameLobbyObject = stringToObject<shared_class::SetMaxCardValueInCreateGameLobby> (objectAsString);
   auto accountNameToSearch = user->accountName.value ();
   if (auto gameLobbyWithAccount = ranges::find_if (gameLobbys,
@@ -514,6 +516,7 @@ setMaxCardValueInCreateGameLobby (std::string const &objectAsString, std::shared
 void
 setTimerOption (std::string const &objectAsString, std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys)
 {
+  // TODO It should not be possible for the none admin to change settings in the create game lobby
   auto setTimerOptionObject = stringToObject<shared_class::SetTimerOption> (objectAsString);
   auto accountNameToSearch = user->accountName.value ();
   if (auto gameLobbyWithAccount = ranges::find_if (gameLobbys,

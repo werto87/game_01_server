@@ -111,7 +111,6 @@ auto const sendTimer = [] (std::vector<GameUser> &_gameUsers) {
     else
       {
         using namespace std::chrono;
-        std::cout << gameUser._timer->expiry ().time_since_epoch ().count () << std::endl;
         durakTimers.runningTimeUserTimePointMilliseconds.push_back (std::make_pair (gameUser._user->accountName.value (), duration_cast<milliseconds> (gameUser._timer->expiry ().time_since_epoch ()).count ()));
       }
     gameUser._user->msgQueue.push_back (objectToStringWithObjectName (durakTimers));
@@ -120,7 +119,6 @@ auto const sendTimer = [] (std::vector<GameUser> &_gameUsers) {
 };
 
 auto const initTimerHandler = [] (durak::Game &game, std::vector<GameUser> &_gameUsers, TimerOption &timerOption, boost::sml::back::process<resumeTimer> process_event) {
-  std::cout << "initTimerHandler" << std::endl;
   using namespace std::chrono;
   ranges::for_each (_gameUsers, [&timerOption] (auto &gameUser) { gameUser._pausedTime = timerOption.timeAtStart; });
   if (auto attackingPlayer = game.getAttackingPlayer ())
@@ -130,12 +128,10 @@ auto const initTimerHandler = [] (durak::Game &game, std::vector<GameUser> &_gam
 };
 
 auto const pauseTimerHandler = [] (pauseTimer const &pauseTimerEv, std::vector<GameUser> &_gameUsers) {
-  std::cout << "pauseTimerHandler" << std::endl;
   ranges::for_each (_gameUsers, [&playersToPausetime = pauseTimerEv.playersToPause] (auto &gameUser) {
     using namespace std::chrono;
     if (ranges::find (playersToPausetime, gameUser._user->accountName.value ()) != playersToPausetime.end ())
       {
-        std::cout << " user:" << gameUser._user->accountName.value () << std::endl;
         gameUser._pausedTime = duration_cast<milliseconds> (gameUser._timer->expiry () - system_clock::now ());
         gameUser._timer->cancel ();
       }
@@ -143,7 +139,6 @@ auto const pauseTimerHandler = [] (pauseTimer const &pauseTimerEv, std::vector<G
 };
 
 auto const nextRoundTimerHandler = [] (durak::Game &game, std::vector<GameUser> &_gameUsers, TimerOption &timerOption, boost::sml::back::process<resumeTimer> process_event) {
-  std::cout << "nextRoundTimerHandler" << std::endl;
   using namespace std::chrono;
   ranges::for_each (_gameUsers, [&timerOption] (auto &gameUser) {
     if (timerOption.timerType == shared_class::TimerType::addTimeOnNewRound)
@@ -161,9 +156,10 @@ auto const nextRoundTimerHandler = [] (durak::Game &game, std::vector<GameUser> 
       process_event (resumeTimer{ { attackingPlayer->id } });
     }
 };
-auto const sendAllowedMoves = [] (durak::Game &game, std::vector<GameUser> &_gameUsers) { sendAvailableMoves (game, _gameUsers); };
+auto const sendAllowedMoves = [] (durak::Game &game, std::vector<GameUser> &_gameUsers) {
+  sendAvailableMoves (game, _gameUsers);
+};
 auto const resumeTimerHandler = [] (resumeTimer const &resumeTimerEv, durak::Game &game, std::vector<GameUser> &_gameUsers) {
-  std::cout << "resumeTimerHandler" << std::endl;
   ranges::for_each (_gameUsers, [&game, &_gameUsers, playersToResume = resumeTimerEv.playersToResume] (auto &gameUser) {
     if (ranges::find (playersToResume, gameUser._user->accountName.value ()) != playersToResume.end ())
       {
@@ -682,7 +678,8 @@ struct PassMachine
     return make_transition_table (
         // clang-format off
 /*--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/      
-* state<Chill>                  + on_entry<_>                                             /(resetPassStateMachineData,process (nextRoundTimer{}))           
+* "doNotStartAtConstruction"_s  + event<start>                                                                                        = state<Chill>    
+, state<Chill>                  + on_entry<_>                                             /(resetPassStateMachineData,process (nextRoundTimer{}))           
 , state<Chill>                  + event<askDef>                                                                                       = state<AskDef>
 , state<Chill>                  + event<askAttackAndAssist>                                                                           = state<AskAttackAndAssist>
 , state<Chill>                  + event<attackPass>                                       /(setAttackPass,checkData)
