@@ -62,7 +62,6 @@ removeUserFromGame (std::string const &userToRemove, durak::Game &game, std::vec
   if (not game.checkIfGameIsOver ())
     {
       game.removePlayer (userToRemove);
-
       if (auto durak = game.durak ())
         {
           ranges::for_each (_gameUsers, [durak = durak->id] (auto const &gameUser) {
