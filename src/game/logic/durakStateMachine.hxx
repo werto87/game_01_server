@@ -155,9 +155,14 @@ auto const nextRoundTimerHandler = [] (durak::Game &game, std::vector<GameUser> 
       process_event (resumeTimer{ { attackingPlayer->id } });
     }
 };
-auto const sendAllowedMoves = [] (durak::Game &game, std::vector<GameUser> &_gameUsers) {
-  sendAvailableMoves (game, _gameUsers);
-};
+
+auto const blockDef = AllowedMoves{ .defend = std::vector<durak::Move>{} };
+auto const blockAttackAndAssist = AllowedMoves{ .attack = std::vector<durak::Move>{}, .assist = std::vector<durak::Move>{} };
+
+auto const sendAllowedMoves = [] (durak::Game &game, std::vector<GameUser> &_gameUsers) { sendAvailableMoves (game, _gameUsers); };
+auto const sendAllowedMovesBlockDef = [] (durak::Game &game, std::vector<GameUser> &_gameUsers) { sendAvailableMoves (game, _gameUsers, blockDef); };
+auto const sendAllowedMovesBlockAttackAndAssist = [] (durak::Game &game, std::vector<GameUser> &_gameUsers) { sendAvailableMoves (game, _gameUsers, blockAttackAndAssist); };
+
 auto const resumeTimerHandler = [] (resumeTimer const &resumeTimerEv, durak::Game &game, std::vector<GameUser> &_gameUsers) {
   ranges::for_each (_gameUsers, [&game, &_gameUsers, playersToResume = resumeTimerEv.playersToResume] (auto &gameUser) {
     if (ranges::find (playersToResume, gameUser._user->accountName.value ()) != playersToResume.end ())
@@ -262,7 +267,6 @@ auto const checkAttackAndAssistAnswer = [] (PassAttackAndAssist &passAttackAndAs
   if (passAttackAndAssist.attack && passAttackAndAssist.assist)
     {
       game.nextRound (true);
-
       sendGameDataToAccountsInGame (game, _gameUsers);
       if (game.checkIfGameIsOver ())
         {
@@ -354,7 +358,6 @@ auto const startAskAttackAndAssist = [] (PassAttackAndAssist &passAttackAndAssis
   if (passAttackAndAssist.assist && passAttackAndAssist.attack)
     {
       game.nextRound (true);
-
       sendGameDataToAccountsInGame (game, _gameUsers);
       if (game.checkIfGameIsOver ())
         {
@@ -477,7 +480,7 @@ auto const handleDefendPass = [] (defendPass const &defendPassEv, durak::Game &g
           if (game.getAttackStarted ())
             {
               sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendPassSuccess{}));
-              sendGameDataToAccountsInGame (game, _gameUsers);
+              sendGameDataToAccountsInGame (game, _gameUsers, blockDef);
               process_event (askAttackAndAssist{});
             }
           else
@@ -670,6 +673,8 @@ auto const askAssistAgain = [] (PassAttackAndAssist &passAttackAndAssist, durak:
 
 struct PassMachine
 {
+  // TODO do not allow to defend with a card if defender selected take cards from table and attack adds cards
+
   auto
   operator() () const
   {
@@ -686,11 +691,13 @@ struct PassMachine
 , state<Chill>                  + event<defendPass>                                       / handleDefendPass                                         
 , state<Chill>                  + event<attack>                                           / doAttack 
 , state<Chill>                  + event<defend>                 [isDefendingPlayer]       / doDefend 
+, state<Chill>                  + event<resendAllowedMoves>                               / sendAllowedMoves
 /*--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/      
 , state<AskDef>                 + on_entry<_>                                             / startAskDef
 , state<AskDef>                 + event<defendAnswerYes>                                                                                = state<AskAttackAndAssist>
 , state<AskDef>                 + event<defendAnswerNo>                                   / handleDefendSuccess                         = state<Chill>
 , state<AskDef>                 + event<defendRelog>                                      / startAskDefAgain
+, state<AskDef>                 + event<resendAllowedMoves>                               / sendAllowedMovesBlockAttackAndAssist
 /*--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/      
 , state<AskAttackAndAssist>     + on_entry<_>                                             / startAskAttackAndAssist
 , state<AskAttackAndAssist>     + event<attackPass>                                       /(setAttackAnswer,checkAttackAndAssistAnswer)
@@ -699,13 +706,14 @@ struct PassMachine
 , state<AskAttackAndAssist>     + event<chill>                                                                                          =state<Chill>
 , state<AskAttackAndAssist>     + event<attackRelog>                                      / askAttackAgain
 , state<AskAttackAndAssist>     + event<assistRelog>                                      / askAssistAgain
+, state<AskAttackAndAssist>     + event<resendAllowedMoves>                               / sendAllowedMovesBlockDef
 /*--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/      
 ,*"leaveGameHandler"_s          + event<leaveGame>                                        / userLeftGame                                
 ,*"timerHandler"_s              + event<initTimer>              [timerActive]             / (initTimerHandler,sendTimer)
 , "timerHandler"_s              + event<nextRoundTimer>         [timerActive]             / (nextRoundTimerHandler,sendTimer)
 , "timerHandler"_s              + event<pauseTimer>             [timerActive]             / (pauseTimerHandler,sendTimer)
 , "timerHandler"_s              + event<resumeTimer>            [timerActive]             / (resumeTimerHandler,sendTimer)
-, "timerHandler"_s              + event<resendAllowedMoves>                               / sendAllowedMoves
+
 // clang-format on   
     );
   }
