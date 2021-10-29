@@ -158,10 +158,12 @@ auto const nextRoundTimerHandler = [] (durak::Game &game, std::vector<GameUser> 
 
 auto const blockDef = AllowedMoves{ .defend = std::vector<durak::Move>{} };
 auto const blockAttackAndAssist = AllowedMoves{ .attack = std::vector<durak::Move>{}, .assist = std::vector<durak::Move>{} };
+auto const blockEverythingExceptStartAttack = AllowedMoves{ .defend = std::vector<durak::Move>{}, .attack = std::vector<durak::Move>{ durak::Move::startAttack }, .assist = std::vector<durak::Move>{} };
 
 auto const sendAllowedMoves = [] (durak::Game &game, std::vector<GameUser> &_gameUsers) { sendAvailableMoves (game, _gameUsers); };
 auto const sendAllowedMovesBlockDef = [] (durak::Game &game, std::vector<GameUser> &_gameUsers) { sendAvailableMoves (game, _gameUsers, blockDef); };
 auto const sendAllowedMovesBlockAttackAndAssist = [] (durak::Game &game, std::vector<GameUser> &_gameUsers) { sendAvailableMoves (game, _gameUsers, blockAttackAndAssist); };
+auto const roundStartSendAllowedMoves = [] (durak::Game &game, std::vector<GameUser> &_gameUsers) { sendGameDataToAccountsInGame (game, _gameUsers, blockEverythingExceptStartAttack); };
 
 auto const resumeTimerHandler = [] (resumeTimer const &resumeTimerEv, durak::Game &game, std::vector<GameUser> &_gameUsers) {
   ranges::for_each (_gameUsers, [&game, &_gameUsers, playersToResume = resumeTimerEv.playersToResume] (auto &gameUser) {
@@ -267,7 +269,7 @@ auto const checkAttackAndAssistAnswer = [] (PassAttackAndAssist &passAttackAndAs
   if (passAttackAndAssist.attack && passAttackAndAssist.assist)
     {
       game.nextRound (true);
-      sendGameDataToAccountsInGame (game, _gameUsers);
+      roundStartSendAllowedMoves (game, _gameUsers);
       if (game.checkIfGameIsOver ())
         {
           if (auto durak = game.durak ())
@@ -358,7 +360,7 @@ auto const startAskAttackAndAssist = [] (PassAttackAndAssist &passAttackAndAssis
   if (passAttackAndAssist.assist && passAttackAndAssist.attack)
     {
       game.nextRound (true);
-      sendGameDataToAccountsInGame (game, _gameUsers);
+      roundStartSendAllowedMoves (game, _gameUsers);
       if (game.checkIfGameIsOver ())
         {
           if (auto durak = game.durak ())
@@ -462,7 +464,7 @@ auto const handleDefendSuccess = [] (defendAnswerNo const &defendAnswerNoEv, dur
                 }
             }
           sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAskDefendWantToTakeCardsAnswerSuccess{}));
-          sendGameDataToAccountsInGame (game, _gameUsers);
+          roundStartSendAllowedMoves (game, _gameUsers);
         }
       else
         {
@@ -614,7 +616,7 @@ auto const askAttackAgain = [] (PassAttackAndAssist &passAttackAndAssist, durak:
   if (passAttackAndAssist.assist && passAttackAndAssist.attack)
     {
       game.nextRound (true);
-      sendGameDataToAccountsInGame (game, _gameUsers);
+      roundStartSendAllowedMoves (game, _gameUsers);
       if (game.checkIfGameIsOver ())
         {
           if (auto durak = game.durak ())
@@ -652,7 +654,7 @@ auto const askAssistAgain = [] (PassAttackAndAssist &passAttackAndAssist, durak:
   if (passAttackAndAssist.assist && passAttackAndAssist.attack)
     {
       game.nextRound (true);
-      sendGameDataToAccountsInGame (game, _gameUsers);
+      roundStartSendAllowedMoves (game, _gameUsers);
       if (game.checkIfGameIsOver ())
         {
           if (auto durak = game.durak ())
@@ -674,6 +676,7 @@ auto const askAssistAgain = [] (PassAttackAndAssist &passAttackAndAssist, durak:
 struct PassMachine
 {
   // TODO do not allow to defend with a card if defender selected take cards from table and attack adds cards
+  // TODO do not send allowed to pass in avaible moves if round starts.
 
   auto
   operator() () const
