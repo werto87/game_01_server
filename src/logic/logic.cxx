@@ -54,6 +54,24 @@ template <class... Ts> struct overloaded : Ts...
 };
 template <class... Ts> overloaded (Ts...) -> overloaded<Ts...>;
 
+void
+removeGameIfItIsOver (std::string const &accountName, std::list<GameMachine> &gameMachines)
+{
+  if (auto gameWithUser = ranges::find_if (gameMachines,
+                                           [&accountName] (auto const &gameMachine) {
+                                             auto accountNames = std::vector<std::string>{};
+                                             ranges::transform (gameMachine.getGameUsers (), ranges::back_inserter (accountNames), [] (auto const &gameUser) { return gameUser._user->accountName.value (); });
+                                             return ranges::find_if (accountNames, [&accountName] (auto const &nameToCheck) { return nameToCheck == accountName; }) != accountNames.end ();
+                                           });
+      gameWithUser != gameMachines.end ())
+    {
+      if (gameWithUser->getGame ().checkIfGameIsOver ())
+        {
+          gameMachines.erase (gameWithUser);
+        }
+    }
+}
+
 boost::asio::awaitable<std::vector<std::string>>
 handleMessage (std::string const &msg, boost::asio::io_context &io_context, boost::asio::thread_pool &pool, std::list<std::shared_ptr<User>> &users, std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys, std::list<GameMachine> &gameMachines)
 {
@@ -190,6 +208,12 @@ handleMessage (std::string const &msg, boost::asio::io_context &io_context, boos
     {
       std::cout << "UnhandledMessage|{\"message\": \"" << msg << "\"}" << std::endl;
       result.push_back ("UnhandledMessage|{\"message\": \"" + msg + "\"}");
+    }
+  if (user->accountName)
+    {
+      //  TODO this is a workaround because calling gameOver in the statemachine leads to a crash in the destructor
+      //  TODO the statemachine should call gameOver
+      removeGameIfItIsOver (user->accountName.value (), gameMachines);
     }
   co_return result;
 }
@@ -367,7 +391,18 @@ createGame (std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys, std::l
           auto names = std::vector<std::string>{};
           ranges::transform (gameLobbyWithUser->_users, ranges::back_inserter (names), [] (auto const &tempUser) { return tempUser->accountName.value (); });
           auto game = durak::Game{ std::move (names), gameLobbyWithUser->gameOption };
-          auto &gameMachine = gameMachines.emplace_back (game, gameLobbyWithUser->_users, io_context, gameLobbyWithUser->timerOption);
+          auto &gameMachine = gameMachines.emplace_back (game, gameLobbyWithUser->_users, io_context, gameLobbyWithUser->timerOption, [accountName = user->accountName, &gameMachines] () {
+            if (auto gameWithUser = ranges::find_if (gameMachines,
+                                                     [accountName] (auto const &gameMachine) {
+                                                       auto accountNames = std::vector<std::string>{};
+                                                       ranges::transform (gameMachine.getGameUsers (), ranges::back_inserter (accountNames), [] (auto const &gameUser) { return gameUser._user->accountName.value (); });
+                                                       return ranges::find_if (accountNames, [&accountName] (auto const &nameToCheck) { return nameToCheck == accountName; }) != accountNames.end ();
+                                                     });
+                gameWithUser != gameMachines.end ())
+              {
+                gameMachines.erase (gameWithUser);
+              }
+          });
           sendGameDataToAccountsInGame (gameMachine.getGame (), gameMachine.getGameUsers ());
           gameLobbys.erase (gameLobbyWithUser);
         }

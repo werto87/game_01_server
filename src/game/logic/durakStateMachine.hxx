@@ -77,13 +77,14 @@ removeUserFromGame (std::string const &userToRemove, durak::Game &game, std::vec
     }
 }
 
-boost::asio::awaitable<void> inline runTimer (std::shared_ptr<boost::asio::system_timer> timer, std::string const &accountName, durak::Game &game, std::vector<GameUser> &_gameUsers)
+boost::asio::awaitable<void> inline runTimer (std::shared_ptr<boost::asio::system_timer> timer, std::string const &accountName, durak::Game &game, std::vector<GameUser> &_gameUsers, std::function<void ()> gameOverCallback)
 {
   try
     {
       co_await timer->async_wait (boost::asio::use_awaitable);
       removeUserFromGame (accountName, game, _gameUsers);
       ranges::for_each (_gameUsers, [] (auto const &gameUser) { gameUser._timer->cancel (); });
+      gameOverCallback ();
     }
   catch (boost::system::system_error &e)
     {
@@ -165,8 +166,8 @@ auto const sendAllowedMovesBlockDef = [] (durak::Game &game, std::vector<GameUse
 auto const sendAllowedMovesBlockAttackAndAssist = [] (durak::Game &game, std::vector<GameUser> &_gameUsers) { sendAvailableMoves (game, _gameUsers, blockAttackAndAssist); };
 auto const roundStartSendAllowedMoves = [] (durak::Game &game, std::vector<GameUser> &_gameUsers) { sendGameDataToAccountsInGame (game, _gameUsers, blockEverythingExceptStartAttack); };
 
-auto const resumeTimerHandler = [] (resumeTimer const &resumeTimerEv, durak::Game &game, std::vector<GameUser> &_gameUsers) {
-  ranges::for_each (_gameUsers, [&game, &_gameUsers, playersToResume = resumeTimerEv.playersToResume] (auto &gameUser) {
+auto const resumeTimerHandler = [] (resumeTimer const &resumeTimerEv, durak::Game &game, std::vector<GameUser> &_gameUsers, std::function<void ()> gameOverCallback) {
+  ranges::for_each (_gameUsers, [&game, &_gameUsers, playersToResume = resumeTimerEv.playersToResume, gameOverCallback] (auto &gameUser) {
     if (ranges::find (playersToResume, gameUser._user->accountName.value ()) != playersToResume.end ())
       {
         std::cout << " user:" << gameUser._user->accountName.value () << std::endl;
@@ -181,7 +182,7 @@ auto const resumeTimerHandler = [] (resumeTimer const &resumeTimerEv, durak::Gam
           }
         gameUser._pausedTime = {};
         co_spawn (
-            gameUser._timer->get_executor (), [_timer = gameUser._timer, accountName = gameUser._user->accountName.value (), &game, &_gameUsers] () { return runTimer (_timer, accountName, game, _gameUsers); }, boost::asio::detached);
+            gameUser._timer->get_executor (), [_timer = gameUser._timer, accountName = gameUser._user->accountName.value (), &game, &_gameUsers, gameOverCallback] () { return runTimer (_timer, accountName, game, _gameUsers, gameOverCallback); }, boost::asio::detached);
       }
   });
 };
@@ -463,8 +464,11 @@ auto const handleDefendSuccess = [] (defendAnswerNo const &defendAnswerNoEv, dur
                   ranges::for_each (_gameUsers, [] (auto const &gameUser) { gameUser._user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverDraw{})); });
                 }
             }
-          sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAskDefendWantToTakeCardsAnswerSuccess{}));
-          roundStartSendAllowedMoves (game, _gameUsers);
+          else
+            {
+              sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAskDefendWantToTakeCardsAnswerSuccess{}));
+              roundStartSendAllowedMoves (game, _gameUsers);
+            }
         }
       else
         {
@@ -675,8 +679,8 @@ auto const askAssistAgain = [] (PassAttackAndAssist &passAttackAndAssist, durak:
 
 struct PassMachine
 {
-  // TODO do not allow to defend with a card if defender selected take cards from table and attack adds cards
-  // TODO do not send allowed to pass in avaible moves if round starts.
+  ~PassMachine () { std::cout << "PASS MACHINE DTOR" << std::endl; }
+  // TODO call a callback which leads to remove of the game machine if game ends
 
   auto
   operator() () const
