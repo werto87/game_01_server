@@ -243,7 +243,7 @@ auto const setAssistAnswer = [] (assistPass const &assistPassEv, PassAttackAndAs
     }
 };
 
-auto const checkData = [] (PassAttackAndAssist &passAttackAndAssist, durak::Game &game, boost::sml::back::process<askDef> process_event) {
+auto const checkData = [] (PassAttackAndAssist &passAttackAndAssist, durak::Game &game, std::vector<GameUser> &_gameUsers, boost::sml::back::process<askDef> process_event) {
   if (auto attackingPlayer = game.getAttackingPlayer (); not attackingPlayer || attackingPlayer->getCards ().empty ())
     {
       passAttackAndAssist.attack = true;
@@ -254,6 +254,7 @@ auto const checkData = [] (PassAttackAndAssist &passAttackAndAssist, durak::Game
     }
   if (passAttackAndAssist.assist && passAttackAndAssist.attack && game.countOfNotBeatenCardsOnTable () == 0)
     {
+      sendAllowedMovesBlockAttackAndAssist (game, _gameUsers);
       process_event (askDef{});
     }
 };
@@ -680,6 +681,7 @@ auto const askAssistAgain = [] (PassAttackAndAssist &passAttackAndAssist, durak:
 struct PassMachine
 {
   //  TODO server does not resend time left when user reconnects
+  // TODO server does not send avaible moves when getting in ask defend state
   auto
   operator() () const
   {
