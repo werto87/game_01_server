@@ -22,15 +22,25 @@ FROM busybox:glibc
 
 
 COPY --from=0 /usr/local/lib/libc++abi.so.1 /lib
+RUN true
 COPY --from=0 /lib/x86_64-linux-gnu/libpthread.so.0 /lib
+RUN true
 COPY --from=0 /lib/x86_64-linux-gnu/libdl.so.2 /lib
+RUN true
 COPY --from=0 /lib/x86_64-linux-gnu/librt.so.1 /lib
+RUN true
 COPY --from=0 /usr/local/lib/libc++.so.1 /lib
+RUN true
 COPY --from=0 /lib/x86_64-linux-gnu/libm.so.6 /lib
+RUN true
 COPY --from=0 /lib/x86_64-linux-gnu/libgcc_s.so.1 /lib
+RUN true
 COPY --from=0 /lib/x86_64-linux-gnu/libc.so.6 /lib
+RUN true
 COPY --from=0 /lib64/ld-linux-x86-64.so.2 /lib
+RUN true
 COPY --from=0 /usr/lib/x86_64-linux-gnu/libatomic.so.1 /lib
+RUN true
 COPY --from=0 /server/build/bin/project /server/project
 
 CMD [ "/server/project"]
