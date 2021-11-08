@@ -679,9 +679,7 @@ auto const askAssistAgain = [] (PassAttackAndAssist &passAttackAndAssist, durak:
 
 struct PassMachine
 {
-  ~PassMachine () { std::cout << "PASS MACHINE DTOR" << std::endl; }
-  // TODO call a callback which leads to remove of the game machine if game ends
-
+  //  TODO server does not resend time left when user reconnects
   auto
   operator() () const
   {

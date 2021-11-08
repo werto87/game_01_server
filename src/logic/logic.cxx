@@ -213,6 +213,7 @@ handleMessage (std::string const &msg, boost::asio::io_context &io_context, boos
     {
       //  TODO this is a workaround because calling gameOver in the statemachine leads to a crash in the destructor
       //  TODO the statemachine should call gameOver
+
       removeGameIfItIsOver (user->accountName.value (), gameMachines);
     }
   co_return result;
