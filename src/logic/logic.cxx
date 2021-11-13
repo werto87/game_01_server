@@ -86,7 +86,7 @@ handleMessage (std::string const &msg, boost::asio::io_context &io_context, boos
       auto const &objectAsString = splitMesssage.at (1);
       if (typeToSearch == "CreateAccount")
         {
-          result.push_back (co_await createAccountAndLogin (objectAsString, io_context, user, pool));
+          co_await createAccountAndLogin (objectAsString, io_context, user, pool);
           user->ignoreCreateAccount = false;
           user->ignoreLogin = false;
         }
@@ -219,32 +219,36 @@ handleMessage (std::string const &msg, boost::asio::io_context &io_context, boos
   co_return result;
 }
 
-boost::asio::awaitable<std::string>
+boost::asio::awaitable<void>
 createAccountAndLogin (std::string objectAsString, boost::asio::io_context &io_context, std::shared_ptr<User> user, boost::asio::thread_pool &pool)
 {
   auto createAccountObject = stringToObject<shared_class::CreateAccount> (objectAsString);
   soci::session sql (soci::sqlite3, databaseName);
   if (confu_soci::findStruct<database::Account> (sql, "accountName", createAccountObject.accountName))
     {
-      co_return objectToStringWithObjectName (shared_class::CreateAccountError{ createAccountObject.accountName, "account already created" });
+      user->msgQueue.push_back (objectToStringWithObjectName (shared_class::CreateAccountError{ createAccountObject.accountName, "account already created" }));
+      co_return;
     }
   else
     {
       auto hashedPw = co_await async_hash (pool, io_context, createAccountObject.password, boost::asio::use_awaitable);
       if (user->ignoreCreateAccount)
         {
-          co_return objectToStringWithObjectName (shared_class::CreateAccountError{ createAccountObject.accountName, "Canceled by User Request" });
+          user->msgQueue.push_back (objectToStringWithObjectName (shared_class::CreateAccountError{ createAccountObject.accountName, "Canceled by User Request" }));
+          co_return;
         }
       else
         {
           if (auto account = database::createAccount (createAccountObject.accountName, hashedPw))
             {
               user->accountName = account->accountName;
-              co_return objectToStringWithObjectName (shared_class::LoginAccountSuccess{ createAccountObject.accountName });
+              user->msgQueue.push_back (objectToStringWithObjectName (shared_class::LoginAccountSuccess{ createAccountObject.accountName }));
+              co_return;
             }
           else
             {
-              co_return objectToStringWithObjectName (shared_class::CreateAccountError{ createAccountObject.accountName, "account already created" });
+              user->msgQueue.push_back (objectToStringWithObjectName (shared_class::CreateAccountError{ createAccountObject.accountName, "account already created" }));
+              co_return;
             }
         }
     }
