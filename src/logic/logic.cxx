@@ -388,24 +388,31 @@ createGame (std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys, std::l
     {
       if (gameLobbyWithUser->gameLobbyAdminAccountName () == user->accountName)
         {
-          ranges::for_each (gameLobbyWithUser->_users, [] (auto &_user) { _user->msgQueue.push_back (objectToStringWithObjectName (shared_class::StartGame{})); });
-          auto names = std::vector<std::string>{};
-          ranges::transform (gameLobbyWithUser->_users, ranges::back_inserter (names), [] (auto const &tempUser) { return tempUser->accountName.value (); });
-          auto game = durak::Game{ std::move (names), gameLobbyWithUser->gameOption };
-          auto &gameMachine = gameMachines.emplace_back (game, gameLobbyWithUser->_users, io_context, gameLobbyWithUser->timerOption, [accountName = user->accountName, &gameMachines] () {
-            if (auto gameWithUser = ranges::find_if (gameMachines,
-                                                     [accountName] (auto const &gameMachine) {
-                                                       auto accountNames = std::vector<std::string>{};
-                                                       ranges::transform (gameMachine.getGameUsers (), ranges::back_inserter (accountNames), [] (auto const &gameUser) { return gameUser._user->accountName.value (); });
-                                                       return ranges::find_if (accountNames, [&accountName] (auto const &nameToCheck) { return nameToCheck == accountName; }) != accountNames.end ();
-                                                     });
-                gameWithUser != gameMachines.end ())
-              {
-                gameMachines.erase (gameWithUser);
-              }
-          });
-          sendGameDataToAccountsInGame (gameMachine.getGame (), gameMachine.getGameUsers ());
-          gameLobbys.erase (gameLobbyWithUser);
+          if (gameLobbyWithUser->accountNames ().size () >= 2)
+            {
+              ranges::for_each (gameLobbyWithUser->_users, [] (auto &_user) { _user->msgQueue.push_back (objectToStringWithObjectName (shared_class::StartGame{})); });
+              auto names = std::vector<std::string>{};
+              ranges::transform (gameLobbyWithUser->_users, ranges::back_inserter (names), [] (auto const &tempUser) { return tempUser->accountName.value (); });
+              auto game = durak::Game{ std::move (names), gameLobbyWithUser->gameOption };
+              auto &gameMachine = gameMachines.emplace_back (game, gameLobbyWithUser->_users, io_context, gameLobbyWithUser->timerOption, [accountName = user->accountName, &gameMachines] () {
+                if (auto gameWithUser = ranges::find_if (gameMachines,
+                                                         [accountName] (auto const &gameMachine) {
+                                                           auto accountNames = std::vector<std::string>{};
+                                                           ranges::transform (gameMachine.getGameUsers (), ranges::back_inserter (accountNames), [] (auto const &gameUser) { return gameUser._user->accountName.value (); });
+                                                           return ranges::find_if (accountNames, [&accountName] (auto const &nameToCheck) { return nameToCheck == accountName; }) != accountNames.end ();
+                                                         });
+                    gameWithUser != gameMachines.end ())
+                  {
+                    gameMachines.erase (gameWithUser);
+                  }
+              });
+              sendGameDataToAccountsInGame (gameMachine.getGame (), gameMachine.getGameUsers ());
+              gameLobbys.erase (gameLobbyWithUser);
+            }
+          else
+            {
+              user->msgQueue.push_back (objectToStringWithObjectName (shared_class::CreateGameError{ "You need atleast two user to create a game" }));
+            }
         }
       else
         {
