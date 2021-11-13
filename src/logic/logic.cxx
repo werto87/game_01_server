@@ -421,7 +421,7 @@ createGame (std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys, std::l
     }
   else
     {
-      user->msgQueue.push_back (objectToStringWithObjectName (shared_class::CreateGameError{ "you need to be admin in a game lobby to start a game" }));
+      user->msgQueue.push_back (objectToStringWithObjectName (shared_class::CreateGameError{ "Could not find a game lobby for the user" }));
     }
 }
 
