@@ -80,7 +80,7 @@ handleMessage (std::string const &msg, boost::asio::io_context &io_context, boos
   boost::algorithm::split (splitMesssage, msg, boost::is_any_of ("|"));
   if (splitMesssage.size () == 2)
     {
-      // TODO rework this. we dont need result we can put in user in every function and add the messages there. this will help for cases when we have to send messages to multiple users. bz improving symetrie
+      // TODO rework this. we dont need result we can put in user in every function and add the messages there. this will help for cases when we have to send messages to multiple users. by improving symetrie
       // we have 3 cases send something to user send somthing to many users dont send anything.
       auto const &typeToSearch = splitMesssage.at (0);
       auto const &objectAsString = splitMesssage.at (1);
