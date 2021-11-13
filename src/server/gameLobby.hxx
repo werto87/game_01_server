@@ -37,7 +37,7 @@ struct GameLobby
 private:
   std::string _name{};
   std::string _password{};
-  size_t _maxUserCount{ 1 };
+  size_t _maxUserCount{ 2 };
 };
 
 #endif /* DBE82937_D6AB_4777_A3C8_A62B68300AA3 */
