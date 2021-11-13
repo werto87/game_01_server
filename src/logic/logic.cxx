@@ -500,7 +500,6 @@ joinGameLobby (std::string const &objectAsString, std::shared_ptr<User> user, st
 std::optional<std::string>
 setMaxUserSizeInCreateGameLobby (std::string const &objectAsString, std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys)
 {
-  // TODO It should not be possible for the none admin to change settings in the create game lobby
   auto setMaxUserSizeInCreateGameLobbyObject = stringToObject<shared_class::SetMaxUserSizeInCreateGameLobby> (objectAsString);
   auto accountNameToSearch = user->accountName.value ();
   if (auto gameLobbyWithAccount = ranges::find_if (gameLobbys,
@@ -510,14 +509,21 @@ setMaxUserSizeInCreateGameLobby (std::string const &objectAsString, std::shared_
                                                    });
       gameLobbyWithAccount != gameLobbys.end ())
     {
-      if (auto errorMessage = gameLobbyWithAccount->setMaxUserCount (setMaxUserSizeInCreateGameLobbyObject.maxUserSize))
+      if (gameLobbyWithAccount->gameLobbyAdminAccountName () == user->accountName)
         {
-          return objectToStringWithObjectName (shared_class::SetMaxUserSizeInCreateGameLobbyError{ errorMessage.value () });
+          if (auto errorMessage = gameLobbyWithAccount->setMaxUserCount (setMaxUserSizeInCreateGameLobbyObject.maxUserSize))
+            {
+              return objectToStringWithObjectName (shared_class::SetMaxUserSizeInCreateGameLobbyError{ errorMessage.value () });
+            }
+          else
+            {
+              gameLobbyWithAccount->sendToAllAccountsInGameLobby (objectToStringWithObjectName (shared_class::MaxUserSizeInCreateGameLobby{ setMaxUserSizeInCreateGameLobbyObject.maxUserSize }));
+              return {};
+            }
         }
       else
         {
-          gameLobbyWithAccount->sendToAllAccountsInGameLobby (objectToStringWithObjectName (shared_class::MaxUserSizeInCreateGameLobby{ setMaxUserSizeInCreateGameLobbyObject.maxUserSize }));
-          return {};
+          return objectToStringWithObjectName (shared_class::SetMaxUserSizeInCreateGameLobbyError{ "you need to be admin in a game lobby to change the user size" });
         }
     }
   else
@@ -529,7 +535,6 @@ setMaxUserSizeInCreateGameLobby (std::string const &objectAsString, std::shared_
 std::optional<std::string>
 setMaxCardValueInCreateGameLobby (std::string const &objectAsString, std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys)
 {
-  // TODO It should not be possible for the none admin to change settings in the create game lobby
   auto setMaxCardValueInCreateGameLobbyObject = stringToObject<shared_class::SetMaxCardValueInCreateGameLobby> (objectAsString);
   auto accountNameToSearch = user->accountName.value ();
   if (auto gameLobbyWithAccount = ranges::find_if (gameLobbys,
@@ -539,15 +544,22 @@ setMaxCardValueInCreateGameLobby (std::string const &objectAsString, std::shared
                                                    });
       gameLobbyWithAccount != gameLobbys.end ())
     {
-      if (setMaxCardValueInCreateGameLobbyObject.maxCardValue < 1)
+      if (gameLobbyWithAccount->gameLobbyAdminAccountName () == user->accountName)
         {
-          return objectToStringWithObjectName (shared_class::SetMaxCardValueInCreateGameLobbyError{ "maxCardValue < 1" });
+          if (setMaxCardValueInCreateGameLobbyObject.maxCardValue < 1)
+            {
+              return objectToStringWithObjectName (shared_class::SetMaxCardValueInCreateGameLobbyError{ "maxCardValue < 1" });
+            }
+          else
+            {
+              gameLobbyWithAccount->gameOption.maxCardValue = setMaxCardValueInCreateGameLobbyObject.maxCardValue;
+              gameLobbyWithAccount->sendToAllAccountsInGameLobby (objectToStringWithObjectName (shared_class::MaxCardValueInCreateGameLobby{ setMaxCardValueInCreateGameLobbyObject.maxCardValue }));
+              return {};
+            }
         }
       else
         {
-          gameLobbyWithAccount->gameOption.maxCardValue = setMaxCardValueInCreateGameLobbyObject.maxCardValue;
-          gameLobbyWithAccount->sendToAllAccountsInGameLobby (objectToStringWithObjectName (shared_class::MaxCardValueInCreateGameLobby{ setMaxCardValueInCreateGameLobbyObject.maxCardValue }));
-          return {};
+          return objectToStringWithObjectName (shared_class::SetMaxCardValueInCreateGameLobbyError{ "you need to be admin in the create game lobby to change the max card value" });
         }
     }
   else
@@ -559,7 +571,6 @@ setMaxCardValueInCreateGameLobby (std::string const &objectAsString, std::shared
 void
 setTimerOption (std::string const &objectAsString, std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys)
 {
-  // TODO It should not be possible for the none admin to change settings in the create game lobby
   auto setTimerOptionObject = stringToObject<shared_class::SetTimerOption> (objectAsString);
   auto accountNameToSearch = user->accountName.value ();
   if (auto gameLobbyWithAccount = ranges::find_if (gameLobbys,
@@ -569,9 +580,16 @@ setTimerOption (std::string const &objectAsString, std::shared_ptr<User> user, s
                                                    });
       gameLobbyWithAccount != gameLobbys.end ())
     {
-      using namespace std::chrono;
-      gameLobbyWithAccount->timerOption = TimerOption{ setTimerOptionObject.timerType, seconds (setTimerOptionObject.timeAtStartInSeconds), seconds (setTimerOptionObject.timeForEachRoundInSeconds) };
-      gameLobbyWithAccount->sendToAllAccountsInGameLobby (objectToStringWithObjectName (setTimerOptionObject));
+      if (gameLobbyWithAccount->gameLobbyAdminAccountName () == user->accountName)
+        {
+          using namespace std::chrono;
+          gameLobbyWithAccount->timerOption = TimerOption{ setTimerOptionObject.timerType, seconds (setTimerOptionObject.timeAtStartInSeconds), seconds (setTimerOptionObject.timeForEachRoundInSeconds) };
+          gameLobbyWithAccount->sendToAllAccountsInGameLobby (objectToStringWithObjectName (setTimerOptionObject));
+        }
+      else
+        {
+          user->msgQueue.push_back (objectToStringWithObjectName (shared_class::SetTimerOptionError{ "you need to be admin in a game lobby to change the timer option" }));
+        }
     }
   else
     {

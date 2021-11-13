@@ -81,7 +81,6 @@ target_sources(${TARGET_NAME} PRIVATE
 "main.cxx"
 )
 
-# TODO if we build for release we need to create the database on first start
 if (CMAKE_BINARY_DIR)
 target_compile_definitions(${TARGET_NAME} PRIVATE PATH_TO_BINARY="${CMAKE_BINARY_DIR}")
 endif()
