@@ -75,8 +75,7 @@ Server::readFromClient (std::list<std::shared_ptr<User>>::iterator user, SSLWebs
           // timer.expires_after (10s);
           // co_await timer.async_wait (use_awaitable);
           auto readResult = co_await my_read (connection);
-          auto result = co_await handleMessage (readResult, _io_context, _pool, users, *user, gameLobbys, games);
-          user->get ()->msgQueue.insert (user->get ()->msgQueue.end (), make_move_iterator (result.begin ()), make_move_iterator (result.end ()));
+          co_await handleMessage (readResult, _io_context, _pool, users, *user, gameLobbys, games);
         }
     }
   catch (std::exception &e)
