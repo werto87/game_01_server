@@ -131,7 +131,8 @@ struct TimerOption
   std::chrono::seconds timeForEachRound{};
 };
 
-struct resendAllowedMoves
+
+struct userRelogged
 {
 };
 

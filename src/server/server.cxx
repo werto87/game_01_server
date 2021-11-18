@@ -110,7 +110,7 @@ Server::writeToClient (std::shared_ptr<User> user, std::weak_ptr<SSLWebsocket> &
           while (not user->msgQueue.empty () && not connection.expired ())
             {
               auto tmpMsg = std::move (user->msgQueue.front ());
-              std::cout << "send msg: " << tmpMsg << std::endl;
+              std::cout << "send msg to: " << user->accountName.value_or ("not logged in user") << " msg: " << tmpMsg << std::endl;
               user->msgQueue.pop_front ();
               co_await connection.lock ()->async_write (buffer (tmpMsg), use_awaitable);
             }
