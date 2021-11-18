@@ -468,7 +468,6 @@ createGameLobby (std::string const &objectAsString, std::shared_ptr<User> user, 
 void
 joinGameLobby (std::string const &objectAsString, std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys)
 {
-  // TODO check if it possible to double join a game lobby
   auto joinGameLobbyObject = stringToObject<shared_class::JoinGameLobby> (objectAsString);
   if (auto gameLobby = ranges::find_if (gameLobbys, [gameLobbyName = joinGameLobbyObject.name, lobbyPassword = joinGameLobbyObject.password] (auto const &_gameLobby) { return _gameLobby.gameLobbyName () == gameLobbyName && _gameLobby.gameLobbyPassword () == lobbyPassword; }); gameLobby != gameLobbys.end ())
     {

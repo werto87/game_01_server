@@ -159,6 +159,9 @@ auto const nextRoundTimerHandler = [] (durak::Game &game, std::vector<GameUser> 
 
 auto const blockDef = AllowedMoves{ .defend = std::vector<durak::Move>{} };
 auto const blockAttackAndAssist = AllowedMoves{ .attack = std::vector<durak::Move>{}, .assist = std::vector<durak::Move>{} };
+auto const blockAttack = AllowedMoves{ .attack = std::vector<durak::Move>{} };
+auto const blockAssist = AllowedMoves{ .assist = std::vector<durak::Move>{} };
+
 auto const blockEverythingExceptStartAttack = AllowedMoves{ .defend = std::vector<durak::Move>{}, .attack = std::vector<durak::Move>{ durak::Move::startAttack }, .assist = std::vector<durak::Move>{} };
 
 auto const sendAllowedMoves = [] (durak::Game &game, std::vector<GameUser> &_gameUsers) { sendAvailableMoves (game, _gameUsers); };
@@ -341,6 +344,7 @@ auto const startAskAttackAndAssist = [] (PassAttackAndAssist &passAttackAndAssis
       if (auto gameUserItr = ranges::find_if (_gameUsers, [&attackingPlayer] (auto const &gameUser) { return gameUser._user->accountName.value () == attackingPlayer->id; }); gameUserItr != _gameUsers.end ())
         {
           gameUserItr->_user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendWantsToTakeCardsFromTableDoYouWantToAddCards{}));
+          sendAllowedMoves (game, _gameUsers);
         }
     }
   else
@@ -353,6 +357,7 @@ auto const startAskAttackAndAssist = [] (PassAttackAndAssist &passAttackAndAssis
       if (auto gameUserItr = ranges::find_if (_gameUsers, [&assistingPlayer] (auto const &gameUser) { return gameUser._user->accountName.value () == assistingPlayer->id; }); gameUserItr != _gameUsers.end ())
         {
           gameUserItr->_user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendWantsToTakeCardsFromTableDoYouWantToAddCards{}));
+          sendAllowedMoves (game, _gameUsers);
         }
     }
   else
@@ -394,6 +399,7 @@ auto const setAttackPass = [] (attackPass const &attackPassEv, PassAttackAndAssi
                 {
                   passAttackAndAssist.attack = true;
                   sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAttackPassSuccess{}));
+                  sendGameDataToAccountsInGame (game, _gameUsers, blockAttack);
                 }
               else
                 {
@@ -425,6 +431,7 @@ auto const setAssistPass = [] (assistPass const &assistPassEv, PassAttackAndAssi
                 {
                   passAttackAndAssist.assist = true;
                   sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAssistPassSuccess{}));
+                  sendGameDataToAccountsInGame (game, _gameUsers, blockAssist);
                 }
               else
                 {
@@ -680,6 +687,7 @@ auto const askAssistAgain = [] (PassAttackAndAssist &passAttackAndAssist, durak:
 
 struct PassMachine
 {
+  // TODO fix: in a 3 player game when attack/assist passes he can press pass as often as he wants until the other attacking/assisting player presses pass. Pass should be greyed out if pressed by attack or assist
   //  TODO server does not resend time left when user reconnects
   // TODO server does not send avaible moves when getting in ask defend state
   auto
