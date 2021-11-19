@@ -214,7 +214,7 @@ auto const setAttackAnswer = [] (attackPass const &attackPassEv, PassAttackAndAs
             {
               passAttackAndAssist.attack = true;
               process_event (pauseTimer{ { attackPassEv.playerName } });
-              sendGameDataToAccountsInGame (game, _gameUsers, blockAttack);
+              sendGameDataToAccountsInGame (game, _gameUsers, AllowedMoves{ .defend = { {} }, .attack = { {} } });
               sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendWantsToTakeCardsFromTableDoneAddingCardsSuccess{}));
             }
           else
@@ -239,7 +239,7 @@ auto const setAssistAnswer = [] (assistPass const &assistPassEv, PassAttackAndAs
               sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendWantsToTakeCardsFromTableDoneAddingCardsSuccess{}));
               passAttackAndAssist.assist = true;
               process_event (pauseTimer{ { assistPassEv.playerName } });
-              sendGameDataToAccountsInGame (game, _gameUsers, blockAssist);
+              sendGameDataToAccountsInGame (game, _gameUsers, AllowedMoves{ .defend = { {} }, .assist = { {} } });
             }
           else
             {
@@ -520,12 +520,10 @@ auto const handleDefendPass = [] (defendPass const &defendPassEv, durak::Game &g
 
 auto const resetPassStateMachineData = [] (PassAttackAndAssist &passAttackAndAssist) { passAttackAndAssist = PassAttackAndAssist{}; };
 
-auto const resetPassAttackAndAssist = [] (PassAttackAndAssist &passAttackAndAssist) { passAttackAndAssist = PassAttackAndAssist{}; };
-
 auto const setRewokePassAssist = [] (PassAttackAndAssist &passAttackAndAssist) { passAttackAndAssist.assist = false; };
 auto const setRewokePassAttack = [] (PassAttackAndAssist &passAttackAndAssist) { passAttackAndAssist.attack = false; };
 
-auto const doAttack = [] (PassAttackAndAssist &passAttackAndAssist, attack const &attackEv, durak::Game &game, std::vector<GameUser> &_gameUsers, boost::sml::back::process<resumeTimer, pauseTimer> process_event) {
+auto const doAttack = [] (PassAttackAndAssist &passAttackAndAssist, attack const &attackEv, durak::Game &game, std::vector<GameUser> &_gameUsers, boost::sml::back::process<resumeTimer, pauseTimer> process_event, bool isChill) {
   if (auto gameUserItr = ranges::find_if (_gameUsers, [accountName = attackEv.playerName] (auto const &gameUser) { return gameUser._user->accountName.value () == accountName; }); gameUserItr != _gameUsers.end ())
     {
       auto &sendingUserMsgQueue = gameUserItr->_user->msgQueue;
@@ -537,7 +535,14 @@ auto const doAttack = [] (PassAttackAndAssist &passAttackAndAssist, attack const
               if (game.playerAssists (playerRole, attackEv.cards))
                 {
                   sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAttackSuccess{}));
-                  sendGameDataToAccountsInGame (game, _gameUsers);
+                  if (isChill)
+                    {
+                      sendGameDataToAccountsInGame (game, _gameUsers);
+                    }
+                  else
+                    {
+                      sendGameDataToAccountsInGame (game, _gameUsers, { .defend = { {} } }, { .defend = {}, .attack = { { durak::Move::pass } }, .assist = { { durak::Move::pass } } });
+                    }
                   passAttackAndAssist = PassAttackAndAssist{};
                 }
               else
@@ -574,7 +579,14 @@ auto const doAttack = [] (PassAttackAndAssist &passAttackAndAssist, attack const
               if (game.playerAssists (playerRole, attackEv.cards))
                 {
                   sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAttackSuccess{}));
-                  sendGameDataToAccountsInGame (game, _gameUsers);
+                  if (isChill)
+                    {
+                      sendGameDataToAccountsInGame (game, _gameUsers);
+                    }
+                  else
+                    {
+                      sendGameDataToAccountsInGame (game, _gameUsers, { .defend = { {} } }, { .defend = {}, .attack = { { durak::Move::pass } }, .assist = { { durak::Move::pass } } });
+                    }
                   passAttackAndAssist = PassAttackAndAssist{};
                 }
               else
@@ -585,6 +597,10 @@ auto const doAttack = [] (PassAttackAndAssist &passAttackAndAssist, attack const
         }
     }
 };
+
+auto const doAttackChill = [] (PassAttackAndAssist &passAttackAndAssist, attack const &attackEv, durak::Game &game, std::vector<GameUser> &_gameUsers, boost::sml::back::process<resumeTimer, pauseTimer> process_event) { doAttack (passAttackAndAssist, attackEv, game, _gameUsers, process_event, true); };
+
+auto const doAttackAskAttackAndAssist = [] (PassAttackAndAssist &passAttackAndAssist, attack const &attackEv, durak::Game &game, std::vector<GameUser> &_gameUsers, boost::sml::back::process<resumeTimer, pauseTimer> process_event) { doAttack (passAttackAndAssist, attackEv, game, _gameUsers, process_event, false); };
 
 auto const doDefend = [] (defend const &defendEv, durak::Game &game, std::vector<GameUser> &_gameUsers, boost::sml::back::process<resumeTimer, pauseTimer> process_event) {
   if (auto gameUserItr = ranges::find_if (_gameUsers, [accountName = defendEv.playerName] (auto const &gameUser) { return gameUser._user->accountName.value () == accountName; }); gameUserItr != _gameUsers.end ())
@@ -699,6 +715,8 @@ auto const askAssistAgain = [] (PassAttackAndAssist &passAttackAndAssist, durak:
 struct PassMachine
 {
 
+  // TODO check what gets send to waiting user when he relogs
+
   auto
   operator() () const
   {
@@ -713,7 +731,7 @@ struct PassMachine
 , state<Chill>                  + event<attackPass>                                       /(setAttackPass,checkData)
 , state<Chill>                  + event<assistPass>                                       /(setAssistPass,checkData)
 , state<Chill>                  + event<defendPass>                                       / handleDefendPass                                         
-, state<Chill>                  + event<attack>                                           / doAttack 
+, state<Chill>                  + event<attack>                                           / doAttackChill 
 , state<Chill>                  + event<defend>                 [isDefendingPlayer]       / doDefend 
 , state<Chill>                  + event<userRelogged>                                     / (sendAllowedMoves,sendTimer)
 /*--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/      
@@ -726,7 +744,7 @@ struct PassMachine
 , state<AskAttackAndAssist>     + on_entry<_>                                             / startAskAttackAndAssist
 , state<AskAttackAndAssist>     + event<attackPass>                                       /(setAttackAnswer,checkAttackAndAssistAnswer)
 , state<AskAttackAndAssist>     + event<assistPass>                                       /(setAssistAnswer,checkAttackAndAssistAnswer)
-, state<AskAttackAndAssist>     + event<attack>                                           / doAttack 
+, state<AskAttackAndAssist>     + event<attack>                                           / doAttackAskAttackAndAssist 
 , state<AskAttackAndAssist>     + event<chill>                                                                                          =state<Chill>
 , state<AskAttackAndAssist>     + event<attackRelog>                                      / askAttackAgain
 , state<AskAttackAndAssist>     + event<assistRelog>                                      / askAssistAgain
