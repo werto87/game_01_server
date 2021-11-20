@@ -57,6 +57,33 @@
                     "ignoreFailures": true
                 }
             ]
+        },
+        {
+            "sourceFileMap": {
+                "/build/gcc/src/gcc/libstdc++-v3/libsupc++": "/home/walde/aur/gcc-11/src/gcc-11.1.0/libstdc++-v3/libsupc++",
+            },
+            "name": "(lldb) TEST Launch",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/bin/_test",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "MIMode": "lldb",
+            "miDebuggerPath": "/usr/bin/lldb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                },
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "catch throw",
+                    "ignoreFailures": true
+                }
+            ]
         }
     ]
 }

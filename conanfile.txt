@@ -9,8 +9,11 @@ game_01_shared_class/0.0.1@werto87/stable
 confu_json/0.0.6@werto87/stable
 durak/0.0.3@werto87/stable
 magic_enum/0.7.2 
+catch2/2.13.7
 [generators]
 cmake
 [options]
 boost:header_only=True
 soci:with_sqlite3=True
+catch2:with_main=True
+catch2:with_benchmark=True

@@ -4,8 +4,9 @@ get_target_property(TARGET_SOURCES ${TARGET_NAME} SOURCES)
 get_target_property(TARGET_LIBS ${TARGET_NAME} LINK_LIBRARIES)
 add_executable(${TEST_TARGET_NAME} 
 main.cxx
-test.cxx
-${CMAKE_CURRENT_LIST_DIR}/constant.hxx
+constant.hxx
+util.hxx
+util.cxx
 gameMachine.cxx
 ${TARGET_SOURCES}
  )

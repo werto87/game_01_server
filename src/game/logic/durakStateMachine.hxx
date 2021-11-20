@@ -214,7 +214,14 @@ auto const setAttackAnswer = [] (attackPass const &attackPassEv, PassAttackAndAs
             {
               passAttackAndAssist.attack = true;
               process_event (pauseTimer{ { attackPassEv.playerName } });
-              sendGameDataToAccountsInGame (game, _gameUsers, AllowedMoves{ .defend = { {} }, .attack = { {} } });
+              if (passAttackAndAssist.assist)
+                {
+                  sendGameDataToAccountsInGame (game, _gameUsers, AllowedMoves{ .defend = { {} }, .attack = { {} } });
+                }
+              else
+                {
+                  sendGameDataToAccountsInGame (game, _gameUsers, AllowedMoves{ .defend = { {} }, .attack = { {} } }, { .assist{ { durak::Move::pass } } });
+                }
               sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendWantsToTakeCardsFromTableDoneAddingCardsSuccess{}));
             }
           else
@@ -236,10 +243,17 @@ auto const setAssistAnswer = [] (assistPass const &assistPassEv, PassAttackAndAs
         {
           if (game.getRoleForName (assistPassEv.playerName) == durak::PlayerRole::assistAttacker)
             {
-              sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendWantsToTakeCardsFromTableDoneAddingCardsSuccess{}));
               passAttackAndAssist.assist = true;
               process_event (pauseTimer{ { assistPassEv.playerName } });
-              sendGameDataToAccountsInGame (game, _gameUsers, AllowedMoves{ .defend = { {} }, .assist = { {} } });
+              if (passAttackAndAssist.attack)
+                {
+                  sendGameDataToAccountsInGame (game, _gameUsers, AllowedMoves{ .defend = { {} }, .assist = { {} } });
+                }
+              else
+                {
+                  sendGameDataToAccountsInGame (game, _gameUsers, AllowedMoves{ .defend = { {} }, .assist = { {} } }, { .attack{ { durak::Move::pass } } });
+                }
+              sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendWantsToTakeCardsFromTableDoneAddingCardsSuccess{}));
             }
           else
             {
@@ -542,6 +556,10 @@ auto const doAttack = [] (PassAttackAndAssist &passAttackAndAssist, attack const
                   else
                     {
                       sendGameDataToAccountsInGame (game, _gameUsers, { .defend = { {} } }, { .defend = {}, .attack = { { durak::Move::pass } }, .assist = { { durak::Move::pass } } });
+                      if (auto assistingPlayer = game.getAssistingPlayer ())
+                        {
+                          process_event (resumeTimer{ { assistingPlayer->id } });
+                        }
                     }
                   passAttackAndAssist = PassAttackAndAssist{};
                 }
@@ -585,6 +603,10 @@ auto const doAttack = [] (PassAttackAndAssist &passAttackAndAssist, attack const
                     }
                   else
                     {
+                      if (auto attackingPlayer = game.getAttackingPlayer ())
+                        {
+                          process_event (resumeTimer{ { attackingPlayer->id } });
+                        }
                       sendGameDataToAccountsInGame (game, _gameUsers, { .defend = { {} } }, { .defend = {}, .attack = { { durak::Move::pass } }, .assist = { { durak::Move::pass } } });
                     }
                   passAttackAndAssist = PassAttackAndAssist{};
@@ -715,7 +737,7 @@ auto const askAssistAgain = [] (PassAttackAndAssist &passAttackAndAssist, durak:
 struct PassMachine
 {
 
-  // TODO check what gets send to waiting user when he relogs
+  // TODO passing not allowed for player if defend  does not beat a card and takes cards and one player passes the other player plays a card than passes some how the other player can not pass again.
 
   auto
   operator() () const
