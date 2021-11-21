@@ -450,7 +450,7 @@ createGameLobby (std::string const &objectAsString, std::shared_ptr<User> user, 
               auto usersInGameLobby = shared_class::UsersInGameLobby{};
               usersInGameLobby.maxUserSize = newGameLobby.maxUserCount ();
               usersInGameLobby.name = newGameLobby.gameLobbyName ();
-              usersInGameLobby.durakGameOption.maxCardValue = newGameLobby.gameOption.maxCardValue;
+              usersInGameLobby.durakGameOption = newGameLobby.gameOption;
               ranges::transform (newGameLobby.accountNames (), ranges::back_inserter (usersInGameLobby.users), [] (auto const &accountName) { return shared_class::UserInGameLobby{ accountName }; });
               user->msgQueue.push_back (objectToStringWithObjectName (shared_class::JoinGameLobbySuccess{}));
               user->msgQueue.push_back (objectToStringWithObjectName (usersInGameLobby));
@@ -482,7 +482,7 @@ joinGameLobby (std::string const &objectAsString, std::shared_ptr<User> user, st
           auto usersInGameLobby = shared_class::UsersInGameLobby{};
           usersInGameLobby.maxUserSize = gameLobby->maxUserCount ();
           usersInGameLobby.name = gameLobby->gameLobbyName ();
-          usersInGameLobby.durakGameOption.maxCardValue = gameLobby->gameOption.maxCardValue;
+          usersInGameLobby.durakGameOption = gameLobby->gameOption;
           ranges::transform (gameLobby->accountNames (), ranges::back_inserter (usersInGameLobby.users), [] (auto const &accountName) { return shared_class::UserInGameLobby{ accountName }; });
           gameLobby->sendToAllAccountsInGameLobby (objectToStringWithObjectName (usersInGameLobby));
           gameLobby->sendToAllAccountsInGameLobby (objectToStringWithObjectName (shared_class::SetTimerOption{ gameLobby->timerOption.timerType, boost::numeric_cast<int> (gameLobby->timerOption.timeAtStart.count ()), boost::numeric_cast<int> (gameLobby->timerOption.timeForEachRound.count ()) }));
@@ -622,7 +622,7 @@ leaveGameLobby (std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys)
           auto usersInGameLobby = shared_class::UsersInGameLobby{};
           usersInGameLobby.maxUserSize = gameLobbyWithAccount->maxUserCount ();
           usersInGameLobby.name = gameLobbyWithAccount->gameLobbyName ();
-          usersInGameLobby.durakGameOption.maxCardValue = gameLobbyWithAccount->gameOption.maxCardValue;
+          usersInGameLobby.durakGameOption = gameLobbyWithAccount->gameOption;
           ranges::transform (gameLobbyWithAccount->accountNames (), ranges::back_inserter (usersInGameLobby.users), [] (auto const &accountName) { return shared_class::UserInGameLobby{ accountName }; });
           gameLobbyWithAccount->sendToAllAccountsInGameLobby (objectToStringWithObjectName (usersInGameLobby));
         }
@@ -654,7 +654,7 @@ relogTo (std::string const &objectAsString, std::shared_ptr<User> user, std::lis
           auto usersInGameLobby = shared_class::UsersInGameLobby{};
           usersInGameLobby.maxUserSize = gameLobbyWithAccount->maxUserCount ();
           usersInGameLobby.name = gameLobbyWithAccount->gameLobbyName ();
-          usersInGameLobby.durakGameOption.maxCardValue = gameLobbyWithAccount->gameOption.maxCardValue;
+          usersInGameLobby.durakGameOption = gameLobbyWithAccount->gameOption;
           ranges::transform (gameLobbyWithAccount->accountNames (), ranges::back_inserter (usersInGameLobby.users), [] (auto const &accountName) { return shared_class::UserInGameLobby{ accountName }; });
           user->msgQueue.push_back (objectToStringWithObjectName (shared_class::SetTimerOption{ gameLobbyWithAccount->timerOption.timerType, boost::numeric_cast<int> (gameLobbyWithAccount->timerOption.timeAtStart.count ()), boost::numeric_cast<int> (gameLobbyWithAccount->timerOption.timeForEachRound.count ()) }));
           user->msgQueue.push_back (objectToStringWithObjectName (usersInGameLobby));
@@ -672,7 +672,7 @@ relogTo (std::string const &objectAsString, std::shared_ptr<User> user, std::lis
               auto usersInGameLobby = shared_class::UsersInGameLobby{};
               usersInGameLobby.maxUserSize = gameLobbyWithAccount->maxUserCount ();
               usersInGameLobby.name = gameLobbyWithAccount->gameLobbyName ();
-              usersInGameLobby.durakGameOption.maxCardValue = gameLobbyWithAccount->gameOption.maxCardValue;
+              usersInGameLobby.durakGameOption = gameLobbyWithAccount->gameOption;
               ranges::transform (gameLobbyWithAccount->accountNames (), ranges::back_inserter (usersInGameLobby.users), [] (auto const &accountName) { return shared_class::UserInGameLobby{ accountName }; });
               gameLobbyWithAccount->sendToAllAccountsInGameLobby (objectToStringWithObjectName (usersInGameLobby));
               return;
