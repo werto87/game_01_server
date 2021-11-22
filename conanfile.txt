@@ -5,7 +5,7 @@ boost/1.76.0
 confu_soci/0.2.0@werto87/stable
 libsodium/1.0.18
 sml/1.1.4
-game_01_shared_class/0.0.1@werto87/stable
+game_01_shared_class/latest@werto87/stable
 confu_json/0.0.7@werto87/stable
 durak/0.0.4@werto87/stable
 magic_enum/0.7.2 
