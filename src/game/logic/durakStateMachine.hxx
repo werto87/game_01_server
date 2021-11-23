@@ -736,7 +736,7 @@ auto const askAssistAgain = [] (PassAttackAndAssist &passAttackAndAssist, durak:
 
 struct PassMachine
 {
-
+  // TODO rework this passing server should send moves and client should show them. use tests to check whats wrong and so on
   // TODO passing not allowed for player if defend  does not beat a card and takes cards and one player passes the other player plays a card than passes some how the other player can not pass again.
 
   auto
