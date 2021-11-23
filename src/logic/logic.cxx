@@ -30,6 +30,7 @@
 #include <game_01_shared_class/serialization.hxx>
 #include <iostream>
 #include <iterator>
+#include <optional>
 #include <pipes/filter.hpp>
 #include <pipes/pipes.hpp>
 #include <pipes/push_back.hpp>
@@ -121,9 +122,9 @@ handleMessage (std::string const &msg, boost::asio::io_context &io_context, boos
         {
           setMaxUserSizeInCreateGameLobby (objectAsString, user, gameLobbys);
         }
-      else if (typeToSearch == "SetMaxCardValueInCreateGameLobby")
+      else if (typeToSearch == "GameOption")
         {
-          setMaxCardValueInCreateGameLobby (objectAsString, user, gameLobbys);
+          setGameOption (objectAsString, user, gameLobbys);
         }
       else if (typeToSearch == "LeaveGameLobby")
         {
@@ -372,6 +373,33 @@ leaveChannel (std::string const &objectAsString, User &user)
     }
 }
 
+std::optional<shared_class::GameOptionError>
+errorInGameOption (durak::GameOption const &gameOption)
+{
+  if (gameOption.customCardDeck)
+    {
+      if (gameOption.customCardDeck->empty ())
+        {
+          return shared_class::GameOptionError{ "Empty Custom Deck is not allowed" };
+        }
+      else
+        {
+          return std::nullopt;
+        }
+    }
+  else
+    {
+      if (gameOption.maxCardValue < 1)
+        {
+          return shared_class::GameOptionError{ "Max Card Value must be greater than 0" };
+        }
+      else
+        {
+          return std::nullopt;
+        }
+    }
+}
+
 void
 createGame (std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys, std::list<GameMachine> &gameMachines, boost::asio::io_context &io_context)
 {
@@ -386,24 +414,31 @@ createGame (std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys, std::l
         {
           if (gameLobbyWithUser->accountNames ().size () >= 2)
             {
-              ranges::for_each (gameLobbyWithUser->_users, [] (auto &_user) { _user->msgQueue.push_back (objectToStringWithObjectName (shared_class::StartGame{})); });
-              auto names = std::vector<std::string>{};
-              ranges::transform (gameLobbyWithUser->_users, ranges::back_inserter (names), [] (auto const &tempUser) { return tempUser->accountName.value (); });
-              auto game = durak::Game{ std::move (names), gameLobbyWithUser->gameOption };
-              auto &gameMachine = gameMachines.emplace_back (game, gameLobbyWithUser->_users, io_context, gameLobbyWithUser->timerOption, [accountName = user->accountName, &gameMachines] () {
-                if (auto gameWithUser = ranges::find_if (gameMachines,
-                                                         [accountName] (auto const &gameMachine) {
-                                                           auto accountNames = std::vector<std::string>{};
-                                                           ranges::transform (gameMachine.getGameUsers (), ranges::back_inserter (accountNames), [] (auto const &gameUser) { return gameUser._user->accountName.value (); });
-                                                           return ranges::find_if (accountNames, [&accountName] (auto const &nameToCheck) { return nameToCheck == accountName; }) != accountNames.end ();
-                                                         });
-                    gameWithUser != gameMachines.end ())
-                  {
-                    gameMachines.erase (gameWithUser);
-                  }
-              });
-              sendGameDataToAccountsInGame (gameMachine.getGame (), gameMachine.getGameUsers ());
-              gameLobbys.erase (gameLobbyWithUser);
+              if (auto gameOptionError = errorInGameOption (gameLobbyWithUser->gameOption))
+                {
+                  user->msgQueue.push_back (objectToStringWithObjectName (gameOptionError.value ()));
+                }
+              else
+                {
+                  ranges::for_each (gameLobbyWithUser->_users, [] (auto &_user) { _user->msgQueue.push_back (objectToStringWithObjectName (shared_class::StartGame{})); });
+                  auto names = std::vector<std::string>{};
+                  ranges::transform (gameLobbyWithUser->_users, ranges::back_inserter (names), [] (auto const &tempUser) { return tempUser->accountName.value (); });
+                  auto game = durak::Game{ std::move (names), gameLobbyWithUser->gameOption };
+                  auto &gameMachine = gameMachines.emplace_back (game, gameLobbyWithUser->_users, io_context, gameLobbyWithUser->timerOption, [accountName = user->accountName, &gameMachines] () {
+                    if (auto gameWithUser = ranges::find_if (gameMachines,
+                                                             [accountName] (auto const &gameMachine) {
+                                                               auto accountNames = std::vector<std::string>{};
+                                                               ranges::transform (gameMachine.getGameUsers (), ranges::back_inserter (accountNames), [] (auto const &gameUser) { return gameUser._user->accountName.value (); });
+                                                               return ranges::find_if (accountNames, [&accountName] (auto const &nameToCheck) { return nameToCheck == accountName; }) != accountNames.end ();
+                                                             });
+                        gameWithUser != gameMachines.end ())
+                      {
+                        gameMachines.erase (gameWithUser);
+                      }
+                  });
+                  sendGameDataToAccountsInGame (gameMachine.getGame (), gameMachine.getGameUsers ());
+                  gameLobbys.erase (gameLobbyWithUser);
+                }
             }
           else
             {
@@ -535,9 +570,9 @@ setMaxUserSizeInCreateGameLobby (std::string const &objectAsString, std::shared_
 }
 
 void
-setMaxCardValueInCreateGameLobby (std::string const &objectAsString, std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys)
+setGameOption (std::string const &objectAsString, std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys)
 {
-  auto setMaxCardValueInCreateGameLobbyObject = stringToObject<shared_class::SetMaxCardValueInCreateGameLobby> (objectAsString);
+  auto gameOption = stringToObject<durak::GameOption> (objectAsString);
   auto accountNameToSearch = user->accountName.value ();
   if (auto gameLobbyWithAccount = ranges::find_if (gameLobbys,
                                                    [accountName = user->accountName] (auto const &gameLobby) {
@@ -548,27 +583,19 @@ setMaxCardValueInCreateGameLobby (std::string const &objectAsString, std::shared
     {
       if (gameLobbyWithAccount->gameLobbyAdminAccountName () == user->accountName)
         {
-          if (setMaxCardValueInCreateGameLobbyObject.maxCardValue < 1)
-            {
-              user->msgQueue.push_back (objectToStringWithObjectName (shared_class::SetMaxCardValueInCreateGameLobbyError{ "maxCardValue < 1" }));
-              return;
-            }
-          else
-            {
-              gameLobbyWithAccount->gameOption.maxCardValue = setMaxCardValueInCreateGameLobbyObject.maxCardValue;
-              gameLobbyWithAccount->sendToAllAccountsInGameLobby (objectToStringWithObjectName (shared_class::MaxCardValueInCreateGameLobby{ setMaxCardValueInCreateGameLobbyObject.maxCardValue }));
-              return;
-            }
+          gameLobbyWithAccount->gameOption = gameOption;
+          gameLobbyWithAccount->sendToAllAccountsInGameLobby (objectToStringWithObjectName (gameOption));
+          return;
         }
       else
         {
-          user->msgQueue.push_back (objectToStringWithObjectName (shared_class::SetMaxCardValueInCreateGameLobbyError{ "you need to be admin in the create game lobby to change the max card value" }));
+          user->msgQueue.push_back (objectToStringWithObjectName (shared_class::GameOptionError{ "you need to be admin in the create game lobby to change game option" }));
           return;
         }
     }
   else
     {
-      user->msgQueue.push_back (objectToStringWithObjectName (shared_class::SetMaxCardValueInCreateGameLobbyError{ "could not find a game lobby for account" }));
+      user->msgQueue.push_back (objectToStringWithObjectName (shared_class::GameOptionError{ "could not find a game lobby for account" }));
       return;
     }
 }
