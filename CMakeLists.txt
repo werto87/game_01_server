@@ -85,6 +85,7 @@ if (CMAKE_BINARY_DIR)
 target_compile_definitions(${TARGET_NAME} PRIVATE PATH_TO_BINARY="${CMAKE_BINARY_DIR}")
 endif()
 
+target_compile_definitions(${TARGET_NAME} PRIVATE _LIBCPP_ENABLE_CXX20_REMOVED_TYPE_TRAITS)
 
 target_compile_definitions(${TARGET_NAME} PUBLIC "$<$<CONFIG:DEBUG>:DEBUG>")
 
