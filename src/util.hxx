@@ -37,8 +37,8 @@ stringToObject (std::string const &objectAsString)
 durak::GameData filterGameDataByAccountName (durak::GameData const &gameData, std::string const &accountName);
 
 // allowed moves overrides
-void sendAvailableMoves (durak::Game const &game, std::vector<GameUser> const &_gameUsers, AllowedMoves const &overrideCalculatedAllowedMoves = {}, AllowedMoves const &addToAllowedMoves = {});
+void sendAvailableMoves (durak::Game const &game, std::vector<GameUser> const &_gameUsers, AllowedMoves const &removeFromAllowedMoves = {}, AllowedMoves const &addToAllowedMoves = {});
 
-void sendGameDataToAccountsInGame (durak::Game const &game, std::vector<GameUser> const &_gameUsers, AllowedMoves const &overrideCalculatedAllowedMoves = {}, AllowedMoves const &addToAllowedMoves = {});
+void sendGameDataToAccountsInGame (durak::Game const &game, std::vector<GameUser> const &_gameUsers, AllowedMoves const &removeFromAllowedMoves = {}, AllowedMoves const &addToAllowedMoves = {});
 
 #endif /* EBD66723_6B6F_4460_A3DE_00AEB1E6D6B1 */

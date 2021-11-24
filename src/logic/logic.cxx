@@ -424,7 +424,7 @@ createGame (std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys, std::l
                   auto names = std::vector<std::string>{};
                   ranges::transform (gameLobbyWithUser->_users, ranges::back_inserter (names), [] (auto const &tempUser) { return tempUser->accountName.value (); });
                   auto game = durak::Game{ std::move (names), gameLobbyWithUser->gameOption };
-                  auto &gameMachine = gameMachines.emplace_back (game, gameLobbyWithUser->_users, io_context, gameLobbyWithUser->timerOption, [accountName = user->accountName, &gameMachines] () {
+                  gameMachines.emplace_back (game, gameLobbyWithUser->_users, io_context, gameLobbyWithUser->timerOption, [accountName = user->accountName, &gameMachines] () {
                     if (auto gameWithUser = ranges::find_if (gameMachines,
                                                              [accountName] (auto const &gameMachine) {
                                                                auto accountNames = std::vector<std::string>{};
@@ -436,7 +436,6 @@ createGame (std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys, std::l
                         gameMachines.erase (gameWithUser);
                       }
                   });
-                  sendGameDataToAccountsInGame (gameMachine.getGame (), gameMachine.getGameUsers ());
                   gameLobbys.erase (gameLobbyWithUser);
                 }
             }

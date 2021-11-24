@@ -160,12 +160,12 @@ auto const nextRoundTimerHandler = [] (durak::Game &game, std::vector<GameUser> 
     }
 };
 
-auto const blockDef = AllowedMoves{ .defend = std::vector<durak::Move>{} };
-auto const blockAttackAndAssist = AllowedMoves{ .attack = std::vector<durak::Move>{}, .assist = std::vector<durak::Move>{} };
-auto const blockAttack = AllowedMoves{ .attack = std::vector<durak::Move>{} };
-auto const blockAssist = AllowedMoves{ .assist = std::vector<durak::Move>{} };
+auto const blockDef = AllowedMoves{ .defend = std::vector<shared_class::Move>{} };
+auto const blockAttackAndAssist = AllowedMoves{ .attack = std::vector<shared_class::Move>{}, .assist = std::vector<shared_class::Move>{} };
+auto const blockAttack = AllowedMoves{ .attack = std::vector<shared_class::Move>{} };
+auto const blockAssist = AllowedMoves{ .assist = std::vector<shared_class::Move>{} };
 
-auto const blockEverythingExceptStartAttack = AllowedMoves{ .defend = std::vector<durak::Move>{}, .attack = std::vector<durak::Move>{ durak::Move::startAttack }, .assist = std::vector<durak::Move>{} };
+auto const blockEverythingExceptStartAttack = AllowedMoves{ .defend = std::vector<shared_class::Move>{}, .attack = std::vector<shared_class::Move>{ shared_class::Move::AddCards }, .assist = std::vector<shared_class::Move>{} };
 
 auto const sendAllowedMoves = [] (durak::Game &game, std::vector<GameUser> &_gameUsers) { sendAvailableMoves (game, _gameUsers); };
 auto const sendAllowedMovesBlockDef = [] (durak::Game &game, std::vector<GameUser> &_gameUsers) { sendAvailableMoves (game, _gameUsers, blockDef); };
@@ -220,7 +220,7 @@ auto const setAttackAnswer = [] (attackPass const &attackPassEv, PassAttackAndAs
                 }
               else
                 {
-                  sendGameDataToAccountsInGame (game, _gameUsers, AllowedMoves{ .defend = { {} }, .attack = { {} } }, { .assist{ { durak::Move::pass } } });
+                  sendGameDataToAccountsInGame (game, _gameUsers, AllowedMoves{ .defend = { {} }, .attack = { {} } }, { .assist{ { shared_class::Move::AttackAssistPass } } });
                 }
               sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendWantsToTakeCardsFromTableDoneAddingCardsSuccess{}));
             }
@@ -251,7 +251,7 @@ auto const setAssistAnswer = [] (assistPass const &assistPassEv, PassAttackAndAs
                 }
               else
                 {
-                  sendGameDataToAccountsInGame (game, _gameUsers, AllowedMoves{ .defend = { {} }, .assist = { {} } }, { .attack{ { durak::Move::pass } } });
+                  sendGameDataToAccountsInGame (game, _gameUsers, AllowedMoves{ .defend = { {} }, .assist = { {} } }, { .attack{ { shared_class::Move::AttackAssistPass } } });
                 }
               sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendWantsToTakeCardsFromTableDoneAddingCardsSuccess{}));
             }
@@ -267,7 +267,7 @@ auto const setAssistAnswer = [] (assistPass const &assistPassEv, PassAttackAndAs
     }
 };
 
-auto const checkData = [] (PassAttackAndAssist &passAttackAndAssist, durak::Game &game, std::vector<GameUser> &_gameUsers, boost::sml::back::process<askDef> process_event) {
+auto const checkData = [] (PassAttackAndAssist &passAttackAndAssist, durak::Game &game, boost::sml::back::process<askDef> process_event) {
   if (auto attackingPlayer = game.getAttackingPlayer (); not attackingPlayer || attackingPlayer->getCards ().empty ())
     {
       passAttackAndAssist.attack = true;
@@ -278,7 +278,6 @@ auto const checkData = [] (PassAttackAndAssist &passAttackAndAssist, durak::Game
     }
   if (passAttackAndAssist.assist && passAttackAndAssist.attack && game.countOfNotBeatenCardsOnTable () == 0)
     {
-      sendAllowedMovesBlockAttackAndAssist (game, _gameUsers);
       process_event (askDef{});
     }
 };
@@ -322,6 +321,7 @@ auto const startAskDef = [] (durak::Game &game, std::vector<GameUser> &_gameUser
       if (auto gameUserItr = ranges::find_if (_gameUsers, [&defendingPlayer] (auto const &gameUser) { return gameUser._user->accountName.value () == defendingPlayer->id; }); gameUserItr != _gameUsers.end ())
         {
           gameUserItr->_user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAskDefendWantToTakeCards{}));
+          gameUserItr->_user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAllowedMoves{ { shared_class::Move::AnswerDefendWantsToTakeCardsYes, shared_class::Move::AnswerDefendWantsToTakeCardsNo } }));
         }
       if (auto attackingPlayer = game.getAttackingPlayer ())
         {
@@ -410,6 +410,7 @@ auto const startAskAttackAndAssist = [] (PassAttackAndAssist &passAttackAndAssis
 auto const setAttackPass = [] (attackPass const &attackPassEv, PassAttackAndAssist &passAttackAndAssist, durak::Game &game, std::vector<GameUser> &_gameUsers, boost::sml::back::process<pauseTimer> process_event) {
   if (auto gameUserItr = ranges::find_if (_gameUsers, [accountName = attackPassEv.playerName] (auto const &gameUser) { return gameUser._user->accountName.value () == accountName; }); gameUserItr != _gameUsers.end ())
     {
+      // TODO think about joining this lambda and setAssistPass they do the same things we can make a function which gets called from setAttackPass and setAssistPass
       auto &sendingUserMsgQueue = gameUserItr->_user->msgQueue;
       auto playerRole = game.getRoleForName (attackPassEv.playerName);
       if (game.getAttackStarted ())
@@ -421,7 +422,7 @@ auto const setAttackPass = [] (attackPass const &attackPassEv, PassAttackAndAssi
                   passAttackAndAssist.attack = true;
                   sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAttackPassSuccess{}));
                   process_event (pauseTimer{ { attackPassEv.playerName } });
-                  sendGameDataToAccountsInGame (game, _gameUsers, blockAttack);
+                  sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAllowedMoves{}));
                 }
               else
                 {
@@ -453,8 +454,8 @@ auto const setAssistPass = [] (assistPass const &assistPassEv, PassAttackAndAssi
                 {
                   passAttackAndAssist.assist = true;
                   sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAssistPassSuccess{}));
+                  sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAllowedMoves{}));
                   process_event (pauseTimer{ { assistPassEv.playerName } });
-                  sendGameDataToAccountsInGame (game, _gameUsers, blockAssist);
                 }
               else
                 {
@@ -555,7 +556,7 @@ auto const doAttack = [] (PassAttackAndAssist &passAttackAndAssist, attack const
                     }
                   else
                     {
-                      sendGameDataToAccountsInGame (game, _gameUsers, { .defend = { {} } }, { .defend = {}, .attack = { { durak::Move::pass } }, .assist = { { durak::Move::pass } } });
+                      sendGameDataToAccountsInGame (game, _gameUsers, { .defend = { {} } }, { .defend = {}, .attack = { { shared_class::Move::AttackAssistPass } }, .assist = { { shared_class::Move::AttackAssistPass } } });
                       if (auto assistingPlayer = game.getAssistingPlayer ())
                         {
                           process_event (resumeTimer{ { assistingPlayer->id } });
@@ -607,7 +608,7 @@ auto const doAttack = [] (PassAttackAndAssist &passAttackAndAssist, attack const
                         {
                           process_event (resumeTimer{ { attackingPlayer->id } });
                         }
-                      sendGameDataToAccountsInGame (game, _gameUsers, { .defend = { {} } }, { .defend = {}, .attack = { { durak::Move::pass } }, .assist = { { durak::Move::pass } } });
+                      sendGameDataToAccountsInGame (game, _gameUsers, { .defend = { {} } }, { .defend = {}, .attack = { { shared_class::Move::AttackAssistPass } }, .assist = { { shared_class::Move::AttackAssistPass } } });
                     }
                   passAttackAndAssist = PassAttackAndAssist{};
                 }
@@ -746,7 +747,7 @@ struct PassMachine
     return make_transition_table (
         // clang-format off
 /*--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/      
-* "doNotStartAtConstruction"_s  + event<start>                                                                                        = state<Chill>    
+* "doNotStartAtConstruction"_s  + event<start>                                            /roundStartSendAllowedMoves                                            = state<Chill>    
 , state<Chill>                  + on_entry<_>                                             /(resetPassStateMachineData,process (nextRoundTimer{}))           
 , state<Chill>                  + event<askDef>                                                                                       = state<AskDef>
 , state<Chill>                  + event<askAttackAndAssist>                                                                           = state<AskAttackAndAssist>
