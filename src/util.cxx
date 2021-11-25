@@ -76,10 +76,9 @@ sendAvailableMoves (durak::Game const &game, std::vector<GameUser> const &_gameU
 }
 
 void
-sendGameDataToAccountsInGame (durak::Game const &game, std::vector<GameUser> const &_gameUsers, AllowedMoves const &removeFromAllowedMoves, AllowedMoves const &addToAllowedMoves)
+sendGameDataToAccountsInGame (durak::Game const &game, std::vector<GameUser> const &_gameUsers)
 {
   auto gameData = game.getGameData ();
   ranges::for_each (gameData.players, [] (auto &player) { ranges::sort (player.cards, [] (auto const &card1, auto const &card2) { return card1.value () < card2.value (); }); });
   ranges::for_each (_gameUsers, [&gameData] (auto const &gameUser) { gameUser._user->msgQueue.push_back (objectToStringWithObjectName (filterGameDataByAccountName (gameData, gameUser._user->accountName.value ()))); });
-  sendAvailableMoves (game, _gameUsers, removeFromAllowedMoves, addToAllowedMoves);
 }

@@ -39,6 +39,6 @@ durak::GameData filterGameDataByAccountName (durak::GameData const &gameData, st
 // allowed moves overrides
 void sendAvailableMoves (durak::Game const &game, std::vector<GameUser> const &_gameUsers, AllowedMoves const &removeFromAllowedMoves = {}, AllowedMoves const &addToAllowedMoves = {});
 
-void sendGameDataToAccountsInGame (durak::Game const &game, std::vector<GameUser> const &_gameUsers, AllowedMoves const &removeFromAllowedMoves = {}, AllowedMoves const &addToAllowedMoves = {});
-
+void sendGameDataToAccountsInGame (durak::Game const &game, std::vector<GameUser> const &_gameUsers);
+std::vector<shared_class::Move> calculateAllowedMoves (durak::Game const &game, durak::PlayerRole playerRole);
 #endif /* EBD66723_6B6F_4460_A3DE_00AEB1E6D6B1 */
