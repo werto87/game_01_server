@@ -160,10 +160,6 @@ auto const nextRoundTimerHandler = [] (durak::Game &game, std::vector<GameUser> 
       process_event (resumeTimer{ { attackingPlayer->id } });
     }
 };
-auto const blockDef = AllowedMoves{ .defend = std::vector<shared_class::Move>{} };
-auto const blockAttackAndAssist = AllowedMoves{ .attack = std::vector<shared_class::Move>{}, .assist = std::vector<shared_class::Move>{} };
-
-auto const blockEverythingExceptStartAttack = AllowedMoves{ .defend = std::vector<shared_class::Move>{}, .attack = std::vector<shared_class::Move>{ shared_class::Move::AddCards }, .assist = std::vector<shared_class::Move>{} };
 
 inline void
 sendAllowedMovesForUserWithName (durak::Game &game, std::vector<GameUser> &_gameUsers, std::string const &userName)
@@ -189,25 +185,29 @@ auto const userReloggedInAskDef = [] (userRelogged const &userReloggedEv, durak:
         }
     }
 };
-auto const userReloggedInAttackAssist = [] (userRelogged const &userReloggedEv, durak::Game &game, std::vector<GameUser> &_gameUsers, PassAttackAndAssist &passAttackAndAssist) {
+
+auto const defendsWantsToTakeCardsSendMovesToAttackOrAssist = [] (durak::Game &game, durak::PlayerRole playerRole, std::deque<std::string> &msgQueue) {
+  auto allowedMoves = calculateAllowedMoves (game, playerRole);
+  if (ranges::find_if (allowedMoves, [] (auto allowedMove) { return allowedMove == shared_class::Move::AddCards; }) != allowedMoves.end ())
+    {
+      msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAllowedMoves{ { shared_class::Move::AttackAssistDoneAddingCards, shared_class::Move::AddCards } }));
+    }
+  else
+    {
+      msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAllowedMoves{ { shared_class::Move::AttackAssistDoneAddingCards } }));
+    }
+};
+
+auto const userReloggedInAskAttackAssist = [] (userRelogged const &userReloggedEv, durak::Game &game, std::vector<GameUser> &_gameUsers, PassAttackAndAssist &passAttackAndAssist) {
   if (auto gameUserItr = ranges::find_if (_gameUsers, [userName = userReloggedEv.accountName] (auto const &gameUser) { return gameUser._user->accountName.value () == userName; }); gameUserItr != _gameUsers.end ())
     {
       if ((not passAttackAndAssist.assist && game.getRoleForName (userReloggedEv.accountName) == durak::PlayerRole::assistAttacker) || (not passAttackAndAssist.attack && game.getRoleForName (userReloggedEv.accountName) == durak::PlayerRole::attack))
         {
-          auto allowedMoves = calculateAllowedMoves (game, game.getRoleForName (userReloggedEv.accountName));
-          if (ranges::find_if (allowedMoves, [] (auto allowedMove) { return allowedMove == shared_class::Move::AddCards; }) != allowedMoves.end ())
-            {
-              gameUserItr->_user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAllowedMoves{ { shared_class::Move::AttackAssistDoneAddingCards, shared_class::Move::AddCards } }));
-            }
-          else
-            {
-              gameUserItr->_user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAllowedMoves{ { shared_class::Move::AttackAssistDoneAddingCards } }));
-            }
+          defendsWantsToTakeCardsSendMovesToAttackOrAssist (game, game.getRoleForName (userReloggedEv.accountName), gameUserItr->_user->msgQueue);
         }
     }
 };
-
-auto const sendAllowedMovesBlockDef = [] (durak::Game &game, std::vector<GameUser> &_gameUsers) { sendAvailableMoves (game, _gameUsers, blockDef); };
+auto const blockEverythingExceptStartAttack = AllowedMoves{ .defend = std::vector<shared_class::Move>{}, .attack = std::vector<shared_class::Move>{ shared_class::Move::AddCards }, .assist = std::vector<shared_class::Move>{} };
 auto const roundStartSendAllowedMovesAndGameData = [] (durak::Game &game, std::vector<GameUser> &_gameUsers) {
   sendGameDataToAccountsInGame (game, _gameUsers);
   sendAvailableMoves (game, _gameUsers, blockEverythingExceptStartAttack);
@@ -372,15 +372,7 @@ auto const startAskAttackAndAssist = [] (PassAttackAndAssist &passAttackAndAssis
       if (auto gameUserItr = ranges::find_if (_gameUsers, [&attackingPlayer] (auto const &gameUser) { return gameUser._user->accountName.value () == attackingPlayer->id; }); gameUserItr != _gameUsers.end ())
         {
           gameUserItr->_user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendWantsToTakeCardsFromTableDoYouWantToAddCards{}));
-          auto allowedMoves = calculateAllowedMoves (game, durak::PlayerRole::attack);
-          if (ranges::find_if (allowedMoves, [] (auto allowedMove) { return allowedMove == shared_class::Move::AddCards; }) != allowedMoves.end ())
-            {
-              gameUserItr->_user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAllowedMoves{ { shared_class::Move::AttackAssistDoneAddingCards, shared_class::Move::AddCards } }));
-            }
-          else
-            {
-              gameUserItr->_user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAllowedMoves{ { shared_class::Move::AttackAssistDoneAddingCards } }));
-            }
+          defendsWantsToTakeCardsSendMovesToAttackOrAssist (game, durak::PlayerRole::attack, gameUserItr->_user->msgQueue);
         }
     }
   else
@@ -393,15 +385,7 @@ auto const startAskAttackAndAssist = [] (PassAttackAndAssist &passAttackAndAssis
       if (auto gameUserItr = ranges::find_if (_gameUsers, [&assistingPlayer] (auto const &gameUser) { return gameUser._user->accountName.value () == assistingPlayer->id; }); gameUserItr != _gameUsers.end ())
         {
           gameUserItr->_user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendWantsToTakeCardsFromTableDoYouWantToAddCards{}));
-          auto allowedMoves = calculateAllowedMoves (game, durak::PlayerRole::assistAttacker);
-          if (ranges::find_if (allowedMoves, [] (auto allowedMove) { return allowedMove == shared_class::Move::AddCards; }) != allowedMoves.end ())
-            {
-              gameUserItr->_user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAllowedMoves{ { shared_class::Move::AttackAssistDoneAddingCards, shared_class::Move::AddCards } }));
-            }
-          else
-            {
-              gameUserItr->_user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAllowedMoves{ { shared_class::Move::AttackAssistDoneAddingCards } }));
-            }
+          defendsWantsToTakeCardsSendMovesToAttackOrAssist (game, durak::PlayerRole::assistAttacker, gameUserItr->_user->msgQueue);
         }
     }
   else
@@ -558,132 +542,63 @@ auto const handleDefendPass = [] (defendPass const &defendPassEv, durak::Game &g
 
 auto const resetPassStateMachineData = [] (PassAttackAndAssist &passAttackAndAssist) { passAttackAndAssist = PassAttackAndAssist{}; };
 
+auto const tryToAttackAndInformOtherPlayers = [] (PassAttackAndAssist &passAttackAndAssist, attack const &attackEv, durak::PlayerRole playerRole, durak::Game &game, std::vector<GameUser> &_gameUsers, boost::sml::back::process<resumeTimer, pauseTimer> process_event, bool isChill, std::deque<std::string> &sendingUserMsgQueue) {
+  if (game.playerAssists (playerRole, attackEv.cards))
+    {
+      sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAttackSuccess{}));
+      if (isChill)
+        {
+          sendGameDataToAccountsInGame (game, _gameUsers);
+          sendAvailableMoves (game, _gameUsers);
+        }
+      else
+        {
+          sendGameDataToAccountsInGame (game, _gameUsers);
+          auto otherPlayerRole = (playerRole == durak::PlayerRole::attack) ? durak::PlayerRole::assistAttacker : durak::PlayerRole::attack;
+          defendsWantsToTakeCardsSendMovesToAttackOrAssist (game, playerRole, sendingUserMsgQueue);
+          if (auto otherPlayer = (otherPlayerRole == durak::PlayerRole::attack) ? game.getAttackingPlayer () : game.getAssistingPlayer ())
+            {
+              if (auto otherPlayerItr = ranges::find_if (_gameUsers, [otherPlayerName = otherPlayer->id] (auto const &gameUser) { return gameUser._user->accountName.value () == otherPlayerName; }); otherPlayerItr != _gameUsers.end ())
+                {
+                  defendsWantsToTakeCardsSendMovesToAttackOrAssist (game, otherPlayerRole, otherPlayerItr->_user->msgQueue);
+                }
+              process_event (resumeTimer{ { otherPlayer->id } });
+            }
+        }
+      passAttackAndAssist = PassAttackAndAssist{};
+    }
+};
+
 auto const doAttack = [] (PassAttackAndAssist &passAttackAndAssist, attack const &attackEv, durak::Game &game, std::vector<GameUser> &_gameUsers, boost::sml::back::process<resumeTimer, pauseTimer> process_event, bool isChill) {
   if (auto gameUserItr = ranges::find_if (_gameUsers, [accountName = attackEv.playerName] (auto const &gameUser) { return gameUser._user->accountName.value () == accountName; }); gameUserItr != _gameUsers.end ())
     {
       auto &sendingUserMsgQueue = gameUserItr->_user->msgQueue;
       auto playerRole = game.getRoleForName (attackEv.playerName);
-      if (playerRole == durak::PlayerRole::attack)
+      if (not game.getAttackStarted () && playerRole == durak::PlayerRole::attack)
         {
-          if (game.getAttackStarted ())
+          if (game.playerStartsAttack (attackEv.cards))
             {
-              if (game.playerAssists (playerRole, attackEv.cards))
+              if (auto defendingPlayer = game.getDefendingPlayer ())
                 {
-                  sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAttackSuccess{}));
-                  if (isChill)
-                    {
-                      sendGameDataToAccountsInGame (game, _gameUsers);
-                      sendAvailableMoves (game, _gameUsers);
-                    }
-                  else
-                    {
-                      sendGameDataToAccountsInGame (game, _gameUsers);
-                      auto allowedMovesAttack = calculateAllowedMoves (game, durak::PlayerRole::attack);
-                      if (ranges::find_if (allowedMovesAttack, [] (auto allowedMove) { return allowedMove == shared_class::Move::AddCards; }) != allowedMovesAttack.end ())
-                        {
-                          gameUserItr->_user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAllowedMoves{ { shared_class::Move::AttackAssistDoneAddingCards, shared_class::Move::AddCards } }));
-                        }
-                      else
-                        {
-                          gameUserItr->_user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAllowedMoves{ { shared_class::Move::AttackAssistDoneAddingCards } }));
-                        }
-
-                      if (auto assistingPlayer = game.getAssistingPlayer ())
-                        {
-                          auto allowedMovesAssist = calculateAllowedMoves (game, durak::PlayerRole::assistAttacker);
-                          if (auto assistUserItr = ranges::find_if (_gameUsers, [accountName = assistingPlayer->id] (auto const &gameUser) { return gameUser._user->accountName.value () == accountName; }); gameUserItr != _gameUsers.end ())
-                            {
-                              if (ranges::find_if (allowedMovesAssist, [] (auto allowedMove) { return allowedMove == shared_class::Move::AddCards; }) != allowedMovesAssist.end ())
-                                {
-                                  assistUserItr->_user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAllowedMoves{ { shared_class::Move::AttackAssistDoneAddingCards, shared_class::Move::AddCards } }));
-                                }
-                              else
-                                {
-                                  assistUserItr->_user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAllowedMoves{ { shared_class::Move::AttackAssistDoneAddingCards } }));
-                                }
-                            }
-                          process_event (resumeTimer{ { assistingPlayer->id } });
-                        }
-                    }
-                  passAttackAndAssist = PassAttackAndAssist{};
+                  process_event (resumeTimer{ { defendingPlayer->id } });
                 }
-              else
+              if (auto attackingPlayer = game.getAttackingPlayer ())
                 {
-                  sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAttackError{ "not allowed to play cards" }));
+                  process_event (pauseTimer{ { attackingPlayer->id } });
                 }
+              sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAttackSuccess{}));
+              sendGameDataToAccountsInGame (game, _gameUsers);
+              sendAvailableMoves (game, _gameUsers);
+              passAttackAndAssist = PassAttackAndAssist{};
             }
           else
             {
-              if (game.playerStartsAttack (attackEv.cards))
-                {
-                  if (auto defendingPlayer = game.getDefendingPlayer ())
-                    {
-                      process_event (resumeTimer{ { defendingPlayer->id } });
-                    }
-                  if (auto attackingPlayer = game.getAttackingPlayer ())
-                    {
-                      process_event (pauseTimer{ { attackingPlayer->id } });
-                    }
-                  sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAttackSuccess{}));
-                  sendGameDataToAccountsInGame (game, _gameUsers);
-                  sendAvailableMoves (game, _gameUsers);
-                  passAttackAndAssist = PassAttackAndAssist{};
-                }
-              else
-                {
-                  sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAttackError{ "not allowed to play cards" }));
-                }
+              sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAttackError{ "not allowed to play cards" }));
             }
         }
-      else if (playerRole == durak::PlayerRole::assistAttacker)
+      else
         {
-          if (game.getAttackStarted ())
-            {
-              if (game.playerAssists (playerRole, attackEv.cards))
-                {
-                  sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAttackSuccess{}));
-                  if (isChill)
-                    {
-                      sendGameDataToAccountsInGame (game, _gameUsers);
-                      sendAvailableMoves (game, _gameUsers);
-                    }
-                  else
-                    {
-                      sendGameDataToAccountsInGame (game, _gameUsers);
-                      auto allowedMovesAssist = calculateAllowedMoves (game, durak::PlayerRole::assistAttacker);
-                      if (ranges::find_if (allowedMovesAssist, [] (auto allowedMove) { return allowedMove == shared_class::Move::AddCards; }) != allowedMovesAssist.end ())
-                        {
-                          gameUserItr->_user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAllowedMoves{ { shared_class::Move::AttackAssistDoneAddingCards, shared_class::Move::AddCards } }));
-                        }
-                      else
-                        {
-                          gameUserItr->_user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAllowedMoves{ { shared_class::Move::AttackAssistDoneAddingCards } }));
-                        }
-
-                      if (auto attackingPlayer = game.getAttackingPlayer ())
-                        {
-                          if (auto attackingUser = ranges::find_if (_gameUsers, [accountName = attackingPlayer->id] (auto const &gameUser) { return gameUser._user->accountName.value () == accountName; }); gameUserItr != _gameUsers.end ())
-                            {
-                              auto allowedMovesAttack = calculateAllowedMoves (game, durak::PlayerRole::attack);
-                              if (ranges::find_if (allowedMovesAttack, [] (auto allowedMove) { return allowedMove == shared_class::Move::AddCards; }) != allowedMovesAttack.end ())
-                                {
-                                  attackingUser->_user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAllowedMoves{ { shared_class::Move::AttackAssistDoneAddingCards, shared_class::Move::AddCards } }));
-                                }
-                              else
-                                {
-                                  attackingUser->_user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAllowedMoves{ { shared_class::Move::AttackAssistDoneAddingCards } }));
-                                }
-                            }
-                          process_event (resumeTimer{ { attackingPlayer->id } });
-                        }
-                    }
-                  passAttackAndAssist = PassAttackAndAssist{};
-                }
-              else
-                {
-                  sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAttackError{ "not allowed to play cards" }));
-                }
-            }
+          tryToAttackAndInformOtherPlayers (passAttackAndAssist, attackEv, playerRole, game, _gameUsers, process_event, isChill, sendingUserMsgQueue);
         }
     }
 };
@@ -768,7 +683,7 @@ struct PassMachine
 , state<AskAttackAndAssist>     + event<assistPass>                                       /(setAssistAnswer,checkAttackAndAssistAnswer)
 , state<AskAttackAndAssist>     + event<attack>                                           / doAttackAskAttackAndAssist 
 , state<AskAttackAndAssist>     + event<chill>                                                                                          =state<Chill>
-, state<AskAttackAndAssist>     + event<userRelogged>                                     / (userReloggedInAttackAssist,sendTimer)
+, state<AskAttackAndAssist>     + event<userRelogged>                                     / (userReloggedInAskAttackAssist,sendTimer)
 /*--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/      
 ,*"leaveGameHandler"_s          + event<leaveGame>                                        / userLeftGame                                
 ,*"timerHandler"_s              + event<initTimer>              [timerActive]             / (initTimerHandler,sendTimer)
