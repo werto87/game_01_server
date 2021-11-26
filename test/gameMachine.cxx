@@ -169,7 +169,6 @@ TEST_CASE ("3 player attack assist def takes cards", "[game]")
   REQUIRE (assistingPlayer.id == "Player2");
   REQUIRE (attackingPlayer.id == "Player3");
   REQUIRE (gameMachine.getGame ().getRound () == 2);
-  std::cout << player1MsgQueue << std::endl;
   CHECK (player1MsgQueue[0] == R"foo(GameData|{"trump":"clubs","table":[],"players":[{"PlayerData":{"name":"Player1","cards":[{"Card":{"value":4,"type":"hearts"}},{"Card":{"value":4,"type":"clubs"}},{"Card":{"value":4,"type":"diamonds"}},{"Card":{"value":4,"type":"spades"}},{"Card":{"value":5,"type":"clubs"}},{"Card":{"value":6,"type":"hearts"}}],"playerRole":"attack"}},{"PlayerData":{"name":"Player2","cards":[null,null,null,null,null,null],"playerRole":"defend"}},{"PlayerData":{"name":"Player3","cards":[null,null,null,null,null,null],"playerRole":"assistAttacker"}}],"round":1,"lastCardInDeck":{"value":7,"type":"clubs"},"cardsInDeck":18})foo");
   CHECK (player1MsgQueue[1] == R"foo(DurakAllowedMoves|{"allowedMoves":[{"Move":"AddCards"}]})foo");
   CHECK (player1MsgQueue[2] == R"foo(DurakAttackSuccess|{})foo");
@@ -188,7 +187,6 @@ TEST_CASE ("3 player attack assist def takes cards", "[game]")
   CHECK (player1MsgQueue[15] == R"foo(DurakDefendWantsToTakeCardsFromTableDoneAddingCardsSuccess|{})foo");
   CHECK (player1MsgQueue[16] == R"foo(GameData|{"trump":"clubs","table":[],"players":[{"PlayerData":{"name":"Player3","cards":[null,null,null,null,null,null],"playerRole":"attack"}},{"PlayerData":{"name":"Player1","cards":[{"Card":{"value":1,"type":"diamonds"}},{"Card":{"value":4,"type":"diamonds"}},{"Card":{"value":4,"type":"spades"}},{"Card":{"value":5,"type":"clubs"}},{"Card":{"value":5,"type":"spades"}},{"Card":{"value":6,"type":"hearts"}}],"playerRole":"defend"}},{"PlayerData":{"name":"Player2","cards":[null,null,null,null,null,null,null,null,null],"playerRole":"assistAttacker"}}],"round":2,"lastCardInDeck":{"value":7,"type":"clubs"},"cardsInDeck":15})foo");
   CHECK (player1MsgQueue[17] == R"foo(DurakAllowedMoves|{"allowedMoves":[]})foo");
-
   CHECK (player2MsgQueue[0] == R"foo(GameData|{"trump":"clubs","table":[],"players":[{"PlayerData":{"name":"Player1","cards":[null,null,null,null,null,null],"playerRole":"attack"}},{"PlayerData":{"name":"Player2","cards":[{"Card":{"value":1,"type":"clubs"}},{"Card":{"value":5,"type":"hearts"}},{"Card":{"value":6,"type":"clubs"}},{"Card":{"value":7,"type":"hearts"}},{"Card":{"value":8,"type":"hearts"}},{"Card":{"value":9,"type":"hearts"}}],"playerRole":"defend"}},{"PlayerData":{"name":"Player3","cards":[null,null,null,null,null,null],"playerRole":"assistAttacker"}}],"round":1,"lastCardInDeck":{"value":7,"type":"clubs"},"cardsInDeck":18})foo");
   CHECK (player2MsgQueue[1] == R"foo(DurakAllowedMoves|{"allowedMoves":[]})foo");
   CHECK (player2MsgQueue[2] == R"foo(GameData|{"trump":"clubs","table":[[{"Card":{"value":4,"type":"clubs"}},null]],"players":[{"PlayerData":{"name":"Player1","cards":[null,null,null,null,null],"playerRole":"attack"}},{"PlayerData":{"name":"Player2","cards":[{"Card":{"value":1,"type":"clubs"}},{"Card":{"value":5,"type":"hearts"}},{"Card":{"value":6,"type":"clubs"}},{"Card":{"value":7,"type":"hearts"}},{"Card":{"value":8,"type":"hearts"}},{"Card":{"value":9,"type":"hearts"}}],"playerRole":"defend"}},{"PlayerData":{"name":"Player3","cards":[null,null,null,null,null,null],"playerRole":"assistAttacker"}}],"round":1,"lastCardInDeck":{"value":7,"type":"clubs"},"cardsInDeck":18})foo");
@@ -204,7 +202,6 @@ TEST_CASE ("3 player attack assist def takes cards", "[game]")
   CHECK (player2MsgQueue[12] == R"foo(DurakAllowedMoves|{"allowedMoves":[]})foo");
   CHECK (player2MsgQueue[13] == R"foo(GameData|{"trump":"clubs","table":[],"players":[{"PlayerData":{"name":"Player3","cards":[null,null,null,null,null,null],"playerRole":"attack"}},{"PlayerData":{"name":"Player1","cards":[null,null,null,null,null,null],"playerRole":"defend"}},{"PlayerData":{"name":"Player2","cards":[{"Card":{"value":1,"type":"clubs"}},{"Card":{"value":4,"type":"hearts"}},{"Card":{"value":4,"type":"clubs"}},{"Card":{"value":5,"type":"hearts"}},{"Card":{"value":6,"type":"clubs"}},{"Card":{"value":7,"type":"hearts"}},{"Card":{"value":8,"type":"hearts"}},{"Card":{"value":9,"type":"hearts"}},{"Card":{"value":9,"type":"clubs"}}],"playerRole":"assistAttacker"}}],"round":2,"lastCardInDeck":{"value":7,"type":"clubs"},"cardsInDeck":15})foo");
   CHECK (player2MsgQueue[14] == R"foo(DurakAllowedMoves|{"allowedMoves":[]})foo");
-
   CHECK (player3MsgQueue[0] == R"foo(GameData|{"trump":"clubs","table":[],"players":[{"PlayerData":{"name":"Player1","cards":[null,null,null,null,null,null],"playerRole":"attack"}},{"PlayerData":{"name":"Player2","cards":[null,null,null,null,null,null],"playerRole":"defend"}},{"PlayerData":{"name":"Player3","cards":[{"Card":{"value":1,"type":"hearts"}},{"Card":{"value":2,"type":"hearts"}},{"Card":{"value":7,"type":"spades"}},{"Card":{"value":8,"type":"spades"}},{"Card":{"value":9,"type":"clubs"}},{"Card":{"value":9,"type":"spades"}}],"playerRole":"assistAttacker"}}],"round":1,"lastCardInDeck":{"value":7,"type":"clubs"},"cardsInDeck":18})foo");
   CHECK (player3MsgQueue[1] == R"foo(DurakAllowedMoves|{"allowedMoves":[]})foo");
   CHECK (player3MsgQueue[2] == R"foo(GameData|{"trump":"clubs","table":[[{"Card":{"value":4,"type":"clubs"}},null]],"players":[{"PlayerData":{"name":"Player1","cards":[null,null,null,null,null],"playerRole":"attack"}},{"PlayerData":{"name":"Player2","cards":[null,null,null,null,null,null],"playerRole":"defend"}},{"PlayerData":{"name":"Player3","cards":[{"Card":{"value":1,"type":"hearts"}},{"Card":{"value":2,"type":"hearts"}},{"Card":{"value":7,"type":"spades"}},{"Card":{"value":8,"type":"spades"}},{"Card":{"value":9,"type":"clubs"}},{"Card":{"value":9,"type":"spades"}}],"playerRole":"assistAttacker"}}],"round":1,"lastCardInDeck":{"value":7,"type":"clubs"},"cardsInDeck":18})foo");
@@ -222,6 +219,12 @@ TEST_CASE ("3 player attack assist def takes cards", "[game]")
   CHECK (player3MsgQueue[14] == R"foo(DurakDefendWantsToTakeCardsFromTableDoneAddingCardsSuccess|{})foo");
   CHECK (player3MsgQueue[15] == R"foo(GameData|{"trump":"clubs","table":[],"players":[{"PlayerData":{"name":"Player3","cards":[{"Card":{"value":1,"type":"hearts"}},{"Card":{"value":2,"type":"hearts"}},{"Card":{"value":6,"type":"spades"}},{"Card":{"value":7,"type":"spades"}},{"Card":{"value":8,"type":"spades"}},{"Card":{"value":9,"type":"spades"}}],"playerRole":"attack"}},{"PlayerData":{"name":"Player1","cards":[null,null,null,null,null,null],"playerRole":"defend"}},{"PlayerData":{"name":"Player2","cards":[null,null,null,null,null,null,null,null,null],"playerRole":"assistAttacker"}}],"round":2,"lastCardInDeck":{"value":7,"type":"clubs"},"cardsInDeck":15})foo");
   CHECK (player3MsgQueue[16] == R"foo(DurakAllowedMoves|{"allowedMoves":[{"Move":"AddCards"}]})foo");
+
+  // std::cout << player1MsgQueue << std::endl;
+  // std::cout << "MSG_QUEU2" << std::endl;
+  // std::cout << player2MsgQueue << std::endl;
+  // std::cout << "MSG_QUEU3" << std::endl;
+  // std::cout << player3MsgQueue << std::endl;
 }
 
 TEST_CASE ("3 player attack assist def success", "[game]")

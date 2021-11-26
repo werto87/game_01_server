@@ -166,6 +166,49 @@ auto const blockAttackAndAssist = AllowedMoves{ .attack = std::vector<shared_cla
 auto const blockEverythingExceptStartAttack = AllowedMoves{ .defend = std::vector<shared_class::Move>{}, .attack = std::vector<shared_class::Move>{ shared_class::Move::AddCards }, .assist = std::vector<shared_class::Move>{} };
 
 auto const sendAllowedMoves = [] (durak::Game &game, std::vector<GameUser> &_gameUsers) { sendAvailableMoves (game, _gameUsers); };
+
+inline void
+sendAllowedMovesForUserWithName (durak::Game &game, std::vector<GameUser> &_gameUsers, std::string const &userName)
+{
+  if (auto gameUserItr = ranges::find_if (_gameUsers, [&userName] (auto const &gameUser) { return gameUser._user->accountName.value () == userName; }); gameUserItr != _gameUsers.end ())
+    {
+      gameUserItr->_user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAllowedMoves{ calculateAllowedMoves (game, game.getRoleForName (userName)) }));
+    }
+}
+
+auto const userReloggedInChillState = [] (userRelogged const &userReloggedEv, durak::Game &game, std::vector<GameUser> &_gameUsers) {
+  if (auto gameUserItr = ranges::find_if (_gameUsers, [userName = userReloggedEv.accountName] (auto const &gameUser) { return gameUser._user->accountName.value () == userName; }); gameUserItr != _gameUsers.end ())
+    {
+      gameUserItr->_user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAllowedMoves{ calculateAllowedMoves (game, game.getRoleForName (userReloggedEv.accountName)) }));
+    }
+};
+auto const userReloggedInAskDef = [] (userRelogged const &userReloggedEv, durak::Game &game, std::vector<GameUser> &_gameUsers) {
+  if (game.getRoleForName (userReloggedEv.accountName) == durak::PlayerRole::defend)
+    {
+      if (auto gameUserItr = ranges::find_if (_gameUsers, [userName = userReloggedEv.accountName] (auto const &gameUser) { return gameUser._user->accountName.value () == userName; }); gameUserItr != _gameUsers.end ())
+        {
+          gameUserItr->_user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAllowedMoves{ { shared_class::Move::AnswerDefendWantsToTakeCardsYes, shared_class::Move::AnswerDefendWantsToTakeCardsNo } }));
+        }
+    }
+};
+auto const userReloggedInAttackAssist = [] (userRelogged const &userReloggedEv, durak::Game &game, std::vector<GameUser> &_gameUsers, PassAttackAndAssist &passAttackAndAssist) {
+  if (auto gameUserItr = ranges::find_if (_gameUsers, [userName = userReloggedEv.accountName] (auto const &gameUser) { return gameUser._user->accountName.value () == userName; }); gameUserItr != _gameUsers.end ())
+    {
+      if ((not passAttackAndAssist.assist && game.getRoleForName (userReloggedEv.accountName) == durak::PlayerRole::assistAttacker) || (not passAttackAndAssist.attack && game.getRoleForName (userReloggedEv.accountName) == durak::PlayerRole::attack))
+        {
+          auto allowedMoves = calculateAllowedMoves (game, game.getRoleForName (userReloggedEv.accountName));
+          if (ranges::find_if (allowedMoves, [] (auto allowedMove) { return allowedMove == shared_class::Move::AddCards; }) != allowedMoves.end ())
+            {
+              gameUserItr->_user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAllowedMoves{ { shared_class::Move::AttackAssistDoneAddingCards, shared_class::Move::AddCards } }));
+            }
+          else
+            {
+              gameUserItr->_user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAllowedMoves{ { shared_class::Move::AttackAssistDoneAddingCards } }));
+            }
+        }
+    }
+};
+
 auto const sendAllowedMovesBlockDef = [] (durak::Game &game, std::vector<GameUser> &_gameUsers) { sendAvailableMoves (game, _gameUsers, blockDef); };
 auto const sendAllowedMovesBlockAttackAndAssist = [] (durak::Game &game, std::vector<GameUser> &_gameUsers) { sendAvailableMoves (game, _gameUsers, blockAttackAndAssist); };
 auto const roundStartSendAllowedMovesAndGameData = [] (durak::Game &game, std::vector<GameUser> &_gameUsers) {
@@ -817,22 +860,19 @@ struct PassMachine
 , state<Chill>                  + event<defendPass>                                       / handleDefendPass                                         
 , state<Chill>                  + event<attack>                                           / doAttackChill 
 , state<Chill>                  + event<defend>                 [isDefendingPlayer]       / doDefend 
-, state<Chill>                  + event<userRelogged>                                     / (sendAllowedMoves,sendTimer)
+, state<Chill>                  + event<userRelogged>                                     / (userReloggedInChillState,sendTimer)
 /*--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/      
 , state<AskDef>                 + on_entry<_>                                             / startAskDef
 , state<AskDef>                 + event<defendAnswerYes>                                  / blockOnlyDef                                            = state<AskAttackAndAssist>
 , state<AskDef>                 + event<defendAnswerNo>                                   / handleDefendSuccess                         = state<Chill>
-, state<AskDef>                 + event<defendRelog>                                      / startAskDefAgain
-, state<AskDef>                 + event<userRelogged>                                     / (sendAllowedMovesBlockAttackAndAssist,sendTimer)
+, state<AskDef>                 + event<userRelogged>                                     / (userReloggedInAskDef,sendTimer)
 /*--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/      
 , state<AskAttackAndAssist>     + on_entry<_>                                             / startAskAttackAndAssist
 , state<AskAttackAndAssist>     + event<attackPass>                                       /(setAttackAnswer,checkAttackAndAssistAnswer)
 , state<AskAttackAndAssist>     + event<assistPass>                                       /(setAssistAnswer,checkAttackAndAssistAnswer)
 , state<AskAttackAndAssist>     + event<attack>                                           / doAttackAskAttackAndAssist 
 , state<AskAttackAndAssist>     + event<chill>                                                                                          =state<Chill>
-, state<AskAttackAndAssist>     + event<attackRelog>                                      / askAttackAgain
-, state<AskAttackAndAssist>     + event<assistRelog>                                      / askAssistAgain
-, state<AskAttackAndAssist>     + event<userRelogged>                                     / (sendAllowedMovesBlockDef,sendTimer)
+, state<AskAttackAndAssist>     + event<userRelogged>                                     / (userReloggedInAttackAssist,sendTimer)
 /*--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/      
 ,*"leaveGameHandler"_s          + event<leaveGame>                                        / userLeftGame                                
 ,*"timerHandler"_s              + event<initTimer>              [timerActive]             / (initTimerHandler,sendTimer)

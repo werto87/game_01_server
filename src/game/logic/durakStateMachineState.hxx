@@ -89,18 +89,6 @@ struct leaveGame
 {
   std::string accountName{};
 };
-struct defendRelog
-{
-};
-struct attackRelog
-{
-};
-struct assistRelog
-{
-};
-struct waitingRelog
-{
-};
 
 struct initTimer
 {
@@ -131,9 +119,9 @@ struct TimerOption
   std::chrono::seconds timeForEachRound{};
 };
 
-
 struct userRelogged
 {
+  std::string accountName{};
 };
 
 struct start

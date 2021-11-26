@@ -723,31 +723,7 @@ relogTo (std::string const &objectAsString, std::shared_ptr<User> user, std::lis
               ranges::sort (playerRelog->cards, [] (auto const &card1, auto const &card2) { return card1.value () < card2.value (); });
               user->msgQueue.push_back (objectToStringWithObjectName (filterGameDataByAccountName (gameData, user->accountName.value ())));
             }
-          auto playerRole = gameWithUser->getGame ().getRoleForName (user->accountName.value ());
-          gameWithUser->durakStateMachine.process_event (userRelogged{});
-          switch (playerRole)
-            {
-            case durak::PlayerRole::attack:
-              {
-                gameWithUser->durakStateMachine.process_event (attackRelog{});
-                break;
-              }
-            case durak::PlayerRole::defend:
-              {
-                gameWithUser->durakStateMachine.process_event (defendRelog{});
-                break;
-              }
-            case durak::PlayerRole::assistAttacker:
-              {
-                gameWithUser->durakStateMachine.process_event (assistRelog{});
-                break;
-              }
-            case durak::PlayerRole::waiting:
-              {
-                gameWithUser->durakStateMachine.process_event (waitingRelog{});
-                break;
-              }
-            }
+          gameWithUser->durakStateMachine.process_event (userRelogged{ user->accountName.value () });
         }
       else
         {
