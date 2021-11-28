@@ -116,7 +116,6 @@ auto const sendTimer = [] (std::vector<GameUser> &_gameUsers, TimerOption &timer
             using namespace std::chrono;
             durakTimers.runningTimeUserTimePointMilliseconds.push_back (std::make_pair (gameUser._user->accountName.value (), duration_cast<milliseconds> (gameUser._timer->expiry ().time_since_epoch ()).count ()));
           }
-        gameUser._user->msgQueue.push_back (objectToStringWithObjectName (durakTimers));
       });
       ranges::for_each (_gameUsers, [&durakTimers] (auto const &gameUser) { gameUser._user->msgQueue.push_back (objectToStringWithObjectName (durakTimers)); });
     }
@@ -142,7 +141,7 @@ auto const pauseTimerHandler = [] (pauseTimer const &pauseTimerEv, std::vector<G
   });
 };
 
-auto const nextRoundTimerHandler = [] (durak::Game &game, std::vector<GameUser> &_gameUsers, TimerOption &timerOption, boost::sml::back::process<resumeTimer> process_event) {
+auto const nextRoundTimerHandler = [] (durak::Game &game, std::vector<GameUser> &_gameUsers, TimerOption &timerOption, boost::sml::back::process<resumeTimer, sendTimerEv> process_event) {
   using namespace std::chrono;
   ranges::for_each (_gameUsers, [&timerOption] (auto &gameUser) {
     if (timerOption.timerType == shared_class::TimerType::addTimeOnNewRound)
@@ -158,6 +157,7 @@ auto const nextRoundTimerHandler = [] (durak::Game &game, std::vector<GameUser> 
   if (auto attackingPlayer = game.getAttackingPlayer ())
     {
       process_event (resumeTimer{ { attackingPlayer->id } });
+      process_event (sendTimerEv{});
     }
 };
 
@@ -235,7 +235,8 @@ auto const resumeTimerHandler = [] (resumeTimer const &resumeTimerEv, durak::Gam
 };
 
 auto const isDefendingPlayer = [] (defend const &defendEv, durak::Game &game) { return game.getRoleForName (defendEv.playerName) == durak::PlayerRole::defend; };
-auto const setAttackAnswer = [] (attackPass const &attackPassEv, PassAttackAndAssist &passAttackAndAssist, durak::Game &game, std::vector<GameUser> &_gameUsers, boost::sml::back::process<pauseTimer> process_event) {
+auto const isNotFirstRound = [] (durak::Game &game) { return game.getRound () > 1; };
+auto const setAttackAnswer = [] (attackPass const &attackPassEv, PassAttackAndAssist &passAttackAndAssist, durak::Game &game, std::vector<GameUser> &_gameUsers, boost::sml::back::process<pauseTimer, sendTimerEv> process_event) {
   if (auto gameUserItr = ranges::find_if (_gameUsers, [accountName = attackPassEv.playerName] (auto const &gameUser) { return gameUser._user->accountName.value () == accountName; }); gameUserItr != _gameUsers.end ())
     {
       auto &sendingUserMsgQueue = gameUserItr->_user->msgQueue;
@@ -245,6 +246,7 @@ auto const setAttackAnswer = [] (attackPass const &attackPassEv, PassAttackAndAs
             {
               passAttackAndAssist.attack = true;
               process_event (pauseTimer{ { attackPassEv.playerName } });
+              process_event (sendTimerEv{});
               sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAllowedMoves{ {} }));
               sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendWantsToTakeCardsFromTableDoneAddingCardsSuccess{}));
             }
@@ -259,7 +261,7 @@ auto const setAttackAnswer = [] (attackPass const &attackPassEv, PassAttackAndAs
         }
     }
 };
-auto const setAssistAnswer = [] (assistPass const &assistPassEv, PassAttackAndAssist &passAttackAndAssist, durak::Game &game, std::vector<GameUser> &_gameUsers, boost::sml::back::process<pauseTimer> process_event) {
+auto const setAssistAnswer = [] (assistPass const &assistPassEv, PassAttackAndAssist &passAttackAndAssist, durak::Game &game, std::vector<GameUser> &_gameUsers, boost::sml::back::process<pauseTimer, sendTimerEv> process_event) {
   if (auto gameUserItr = ranges::find_if (_gameUsers, [accountName = assistPassEv.playerName] (auto const &gameUser) { return gameUser._user->accountName.value () == accountName; }); gameUserItr != _gameUsers.end ())
     {
       auto &sendingUserMsgQueue = gameUserItr->_user->msgQueue;
@@ -269,6 +271,7 @@ auto const setAssistAnswer = [] (assistPass const &assistPassEv, PassAttackAndAs
             {
               passAttackAndAssist.assist = true;
               process_event (pauseTimer{ { assistPassEv.playerName } });
+              process_event (sendTimerEv{});
               sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAllowedMoves{ {} }));
               sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendWantsToTakeCardsFromTableDoneAddingCardsSuccess{}));
             }
@@ -299,7 +302,7 @@ auto const checkData = [] (PassAttackAndAssist &passAttackAndAssist, durak::Game
     }
 };
 
-auto const checkAttackAndAssistAnswer = [] (PassAttackAndAssist &passAttackAndAssist, durak::Game &game, std::vector<GameUser> &_gameUsers, boost::sml::back::process<chill, nextRoundTimer> process_event) {
+auto const checkAttackAndAssistAnswer = [] (PassAttackAndAssist &passAttackAndAssist, durak::Game &game, std::vector<GameUser> &_gameUsers, boost::sml::back::process<chill, nextRoundTimer, sendTimerEv> process_event) {
   if (auto attackingPlayer = game.getAttackingPlayer (); not attackingPlayer || attackingPlayer->getCards ().empty ())
     {
       passAttackAndAssist.attack = true;
@@ -311,7 +314,6 @@ auto const checkAttackAndAssistAnswer = [] (PassAttackAndAssist &passAttackAndAs
   if (passAttackAndAssist.attack && passAttackAndAssist.assist)
     {
       game.nextRound (true);
-      roundStartSendAllowedMovesAndGameData (game, _gameUsers);
       if (game.checkIfGameIsOver ())
         {
           if (auto durak = game.durak ())
@@ -331,7 +333,7 @@ auto const checkAttackAndAssistAnswer = [] (PassAttackAndAssist &passAttackAndAs
     }
 };
 
-auto const startAskDef = [] (durak::Game &game, std::vector<GameUser> &_gameUsers, boost::sml::back::process<pauseTimer, resumeTimer> process_event) {
+auto const startAskDef = [] (durak::Game &game, std::vector<GameUser> &_gameUsers, boost::sml::back::process<pauseTimer, resumeTimer, sendTimerEv> process_event) {
   if (auto defendingPlayer = game.getDefendingPlayer ())
     {
       process_event (resumeTimer{ { defendingPlayer->id } });
@@ -348,6 +350,7 @@ auto const startAskDef = [] (durak::Game &game, std::vector<GameUser> &_gameUser
         {
           process_event (pauseTimer{ { assistingPlayer->id } });
         }
+      process_event (sendTimerEv{});
     }
 };
 
@@ -360,7 +363,7 @@ auto const userLeftGame = [] (leaveGame const &leaveGameEv, durak::Game &game, s
     }
 };
 
-auto const startAskAttackAndAssist = [] (PassAttackAndAssist &passAttackAndAssist, durak::Game &game, std::vector<GameUser> &_gameUsers, boost::sml::back::process<pauseTimer, nextRoundTimer, resumeTimer> process_event) {
+auto const startAskAttackAndAssist = [] (PassAttackAndAssist &passAttackAndAssist, durak::Game &game, std::vector<GameUser> &_gameUsers, boost::sml::back::process<pauseTimer, nextRoundTimer, resumeTimer, sendTimerEv> process_event) {
   if (auto defendingPlayer = game.getDefendingPlayer ())
     {
       process_event (pauseTimer{ { defendingPlayer->id } });
@@ -395,7 +398,6 @@ auto const startAskAttackAndAssist = [] (PassAttackAndAssist &passAttackAndAssis
   if (passAttackAndAssist.assist && passAttackAndAssist.attack)
     {
       game.nextRound (true);
-      roundStartSendAllowedMovesAndGameData (game, _gameUsers);
       if (game.checkIfGameIsOver ())
         {
           if (auto durak = game.durak ())
@@ -412,9 +414,13 @@ auto const startAskAttackAndAssist = [] (PassAttackAndAssist &passAttackAndAssis
             }
         }
     }
+  else
+    {
+      process_event (sendTimerEv{});
+    }
 };
 
-auto const doPass = [] (std::string const &playerName, PassAttackAndAssist &passAttackAndAssist, durak::Game &game, std::vector<GameUser> &_gameUsers, boost::sml::back::process<pauseTimer> process_event) {
+auto const doPass = [] (std::string const &playerName, PassAttackAndAssist &passAttackAndAssist, durak::Game &game, std::vector<GameUser> &_gameUsers, boost::sml::back::process<pauseTimer, sendTimerEv> process_event) {
   if (auto gameUserItr = ranges::find_if (_gameUsers, [&playerName] (auto const &gameUser) { return gameUser._user->accountName.value () == playerName; }); gameUserItr != _gameUsers.end ())
     {
       auto &sendingUserMsgQueue = gameUserItr->_user->msgQueue;
@@ -437,6 +443,7 @@ auto const doPass = [] (std::string const &playerName, PassAttackAndAssist &pass
                     }
                   sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAllowedMoves{}));
                   process_event (pauseTimer{ { playerName } });
+                  process_event (sendTimerEv{});
                 }
               else
                 {
@@ -454,8 +461,8 @@ auto const doPass = [] (std::string const &playerName, PassAttackAndAssist &pass
         }
     }
 };
-auto const setAttackPass = [] (attackPass const &attackPassEv, PassAttackAndAssist &passAttackAndAssist, durak::Game &game, std::vector<GameUser> &_gameUsers, boost::sml::back::process<pauseTimer> process_event) { doPass (attackPassEv.playerName, passAttackAndAssist, game, _gameUsers, process_event); };
-auto const setAssistPass = [] (assistPass const &assistPassEv, PassAttackAndAssist &passAttackAndAssist, durak::Game &game, std::vector<GameUser> &_gameUsers, boost::sml::back::process<pauseTimer> process_event) { doPass (assistPassEv.playerName, passAttackAndAssist, game, _gameUsers, process_event); };
+auto const setAttackPass = [] (attackPass const &attackPassEv, PassAttackAndAssist &passAttackAndAssist, durak::Game &game, std::vector<GameUser> &_gameUsers, boost::sml::back::process<pauseTimer, sendTimerEv> process_event) { doPass (attackPassEv.playerName, passAttackAndAssist, game, _gameUsers, process_event); };
+auto const setAssistPass = [] (assistPass const &assistPassEv, PassAttackAndAssist &passAttackAndAssist, durak::Game &game, std::vector<GameUser> &_gameUsers, boost::sml::back::process<pauseTimer, sendTimerEv> process_event) { doPass (assistPassEv.playerName, passAttackAndAssist, game, _gameUsers, process_event); };
 
 auto const handleDefendSuccess = [] (defendAnswerNo const &defendAnswerNoEv, durak::Game &game, std::vector<GameUser> &_gameUsers) {
   if (auto gameUserItr = ranges::find_if (_gameUsers, [accountName = defendAnswerNoEv.playerName] (auto const &gameUser) { return gameUser._user->accountName.value () == accountName; }); gameUserItr != _gameUsers.end ())
@@ -482,7 +489,6 @@ auto const handleDefendSuccess = [] (defendAnswerNo const &defendAnswerNoEv, dur
           else
             {
               sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAskDefendWantToTakeCardsAnswerSuccess{}));
-              roundStartSendAllowedMovesAndGameData (game, _gameUsers);
             }
         }
       else
@@ -518,14 +524,27 @@ auto const handleDefendPass = [] (defendPass const &defendPassEv, durak::Game &g
 
 auto const resetPassStateMachineData = [] (PassAttackAndAssist &passAttackAndAssist) { passAttackAndAssist = PassAttackAndAssist{}; };
 
-auto const tryToAttackAndInformOtherPlayers = [] (PassAttackAndAssist &passAttackAndAssist, attack const &attackEv, durak::PlayerRole playerRole, durak::Game &game, std::vector<GameUser> &_gameUsers, boost::sml::back::process<resumeTimer, pauseTimer> process_event, bool isChill, std::deque<std::string> &sendingUserMsgQueue) {
+auto const tryToAttackAndInformOtherPlayers = [] (PassAttackAndAssist &passAttackAndAssist, attack const &attackEv, durak::PlayerRole playerRole, durak::Game &game, std::vector<GameUser> &_gameUsers, boost::sml::back::process<resumeTimer, pauseTimer, sendTimerEv> process_event, bool isChill, std::deque<std::string> &sendingUserMsgQueue) {
   if (game.playerAssists (playerRole, attackEv.cards))
     {
       sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAttackSuccess{}));
       if (isChill)
         {
+          if (auto defendingPlayer = game.getDefendingPlayer ())
+            {
+              process_event (resumeTimer{ { defendingPlayer->id } });
+            }
+          if (auto attackingPlayer = game.getAttackingPlayer ())
+            {
+              process_event (pauseTimer{ { attackingPlayer->id } });
+            }
+          if (auto assistingPlayer = game.getAssistingPlayer ())
+            {
+              process_event (pauseTimer{ { assistingPlayer->id } });
+            }
           sendGameDataToAccountsInGame (game, _gameUsers);
           sendAvailableMoves (game, _gameUsers);
+          process_event (sendTimerEv{});
         }
       else
         {
@@ -539,13 +558,14 @@ auto const tryToAttackAndInformOtherPlayers = [] (PassAttackAndAssist &passAttac
                   defendsWantsToTakeCardsSendMovesToAttackOrAssist (game, otherPlayerRole, otherPlayerItr->_user->msgQueue);
                 }
               process_event (resumeTimer{ { otherPlayer->id } });
+              process_event (sendTimerEv{});
             }
         }
       passAttackAndAssist = PassAttackAndAssist{};
     }
 };
 
-auto const doAttack = [] (PassAttackAndAssist &passAttackAndAssist, attack const &attackEv, durak::Game &game, std::vector<GameUser> &_gameUsers, boost::sml::back::process<resumeTimer, pauseTimer> process_event, bool isChill) {
+auto const doAttack = [] (PassAttackAndAssist &passAttackAndAssist, attack const &attackEv, durak::Game &game, std::vector<GameUser> &_gameUsers, boost::sml::back::process<resumeTimer, pauseTimer, sendTimerEv> process_event, bool isChill) {
   if (auto gameUserItr = ranges::find_if (_gameUsers, [accountName = attackEv.playerName] (auto const &gameUser) { return gameUser._user->accountName.value () == accountName; }); gameUserItr != _gameUsers.end ())
     {
       auto &sendingUserMsgQueue = gameUserItr->_user->msgQueue;
@@ -565,6 +585,7 @@ auto const doAttack = [] (PassAttackAndAssist &passAttackAndAssist, attack const
               sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAttackSuccess{}));
               sendGameDataToAccountsInGame (game, _gameUsers);
               sendAvailableMoves (game, _gameUsers);
+              process_event (sendTimerEv{});
               passAttackAndAssist = PassAttackAndAssist{};
             }
           else
@@ -579,11 +600,11 @@ auto const doAttack = [] (PassAttackAndAssist &passAttackAndAssist, attack const
     }
 };
 
-auto const doAttackChill = [] (PassAttackAndAssist &passAttackAndAssist, attack const &attackEv, durak::Game &game, std::vector<GameUser> &_gameUsers, boost::sml::back::process<resumeTimer, pauseTimer> process_event) { doAttack (passAttackAndAssist, attackEv, game, _gameUsers, process_event, true); };
+auto const doAttackChill = [] (PassAttackAndAssist &passAttackAndAssist, attack const &attackEv, durak::Game &game, std::vector<GameUser> &_gameUsers, boost::sml::back::process<resumeTimer, pauseTimer, sendTimerEv> process_event) { doAttack (passAttackAndAssist, attackEv, game, _gameUsers, process_event, true); };
 
-auto const doAttackAskAttackAndAssist = [] (PassAttackAndAssist &passAttackAndAssist, attack const &attackEv, durak::Game &game, std::vector<GameUser> &_gameUsers, boost::sml::back::process<resumeTimer, pauseTimer> process_event) { doAttack (passAttackAndAssist, attackEv, game, _gameUsers, process_event, false); };
+auto const doAttackAskAttackAndAssist = [] (PassAttackAndAssist &passAttackAndAssist, attack const &attackEv, durak::Game &game, std::vector<GameUser> &_gameUsers, boost::sml::back::process<resumeTimer, pauseTimer, sendTimerEv> process_event) { doAttack (passAttackAndAssist, attackEv, game, _gameUsers, process_event, false); };
 
-auto const doDefend = [] (defend const &defendEv, durak::Game &game, std::vector<GameUser> &_gameUsers, boost::sml::back::process<resumeTimer, pauseTimer> process_event) {
+auto const doDefend = [] (defend const &defendEv, durak::Game &game, std::vector<GameUser> &_gameUsers, boost::sml::back::process<resumeTimer, pauseTimer, sendTimerEv> process_event) {
   if (auto gameUserItr = ranges::find_if (_gameUsers, [accountName = defendEv.playerName] (auto const &gameUser) { return gameUser._user->accountName.value () == accountName; }); gameUserItr != _gameUsers.end ())
     {
       auto &sendingUserMsgQueue = gameUserItr->_user->msgQueue;
@@ -606,6 +627,7 @@ auto const doDefend = [] (defend const &defendEv, durak::Game &game, std::vector
                     {
                       process_event (resumeTimer{ { assistingPlayer->id } });
                     }
+                  process_event (sendTimerEv{});
                 }
             }
           else
@@ -632,38 +654,40 @@ struct PassMachine
   auto
   operator() () const
   {
+    // TODO when we get back to chill we cann send start round data and remove roundStartSendAllowedMovesAndGameData calls inside functions
     using namespace boost::sml;
     return make_transition_table (
         // clang-format off
 /*--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/      
-* "doNotStartAtConstruction"_s  + event<start>                                            /roundStartSendAllowedMovesAndGameData                    = state<Chill>    
-, state<Chill>                  + on_entry<_>                                             /(resetPassStateMachineData,process (nextRoundTimer{}))           
-, state<Chill>                  + event<askDef>                                                                                                     = state<AskDef>
-, state<Chill>                  + event<askAttackAndAssist>                                                                                         = state<AskAttackAndAssist>
+* "doNotStartAtConstruction"_s  + event<start>                                            /(roundStartSendAllowedMovesAndGameData, process (sendTimerEv{}))                                      = state<Chill>    
+, state<Chill>                  + on_entry<_>                   [isNotFirstRound]         /(resetPassStateMachineData,process (nextRoundTimer{}),roundStartSendAllowedMovesAndGameData)           
+, state<Chill>                  + event<askDef>                                                                                                                           = state<AskDef>
+, state<Chill>                  + event<askAttackAndAssist>                                                                                                               = state<AskAttackAndAssist>
 , state<Chill>                  + event<attackPass>                                       /(setAttackPass,checkData)
 , state<Chill>                  + event<assistPass>                                       /(setAssistPass,checkData)
 , state<Chill>                  + event<defendPass>                                       / handleDefendPass                                         
 , state<Chill>                  + event<attack>                                           / doAttackChill 
 , state<Chill>                  + event<defend>                 [isDefendingPlayer]       / doDefend 
-, state<Chill>                  + event<userRelogged>                                     / (userReloggedInChillState,sendTimer)
+, state<Chill>                  + event<userRelogged>                                     / (userReloggedInChillState)
 /*--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/      
 , state<AskDef>                 + on_entry<_>                                             / startAskDef
-, state<AskDef>                 + event<defendAnswerYes>                                  / blockOnlyDef                                            = state<AskAttackAndAssist>
-, state<AskDef>                 + event<defendAnswerNo>                                   / handleDefendSuccess                                     = state<Chill>
-, state<AskDef>                 + event<userRelogged>                                     / (userReloggedInAskDef,sendTimer)
+, state<AskDef>                 + event<defendAnswerYes>                                  / blockOnlyDef                                                                  = state<AskAttackAndAssist>
+, state<AskDef>                 + event<defendAnswerNo>                                   / handleDefendSuccess                                                           = state<Chill>
+, state<AskDef>                 + event<userRelogged>                                     / (userReloggedInAskDef)
 /*--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/      
 , state<AskAttackAndAssist>     + on_entry<_>                                             / startAskAttackAndAssist
 , state<AskAttackAndAssist>     + event<attackPass>                                       /(setAttackAnswer,checkAttackAndAssistAnswer)
 , state<AskAttackAndAssist>     + event<assistPass>                                       /(setAssistAnswer,checkAttackAndAssistAnswer)
 , state<AskAttackAndAssist>     + event<attack>                                           / doAttackAskAttackAndAssist 
-, state<AskAttackAndAssist>     + event<chill>                                                                                                      =state<Chill>
-, state<AskAttackAndAssist>     + event<userRelogged>                                     / (userReloggedInAskAttackAssist,sendTimer)
+, state<AskAttackAndAssist>     + event<chill>                                                                                                                            =state<Chill>
+, state<AskAttackAndAssist>     + event<userRelogged>                                     / (userReloggedInAskAttackAssist)
 /*--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/      
 ,*"leaveGameHandler"_s          + event<leaveGame>                                        / userLeftGame                                
-,*"timerHandler"_s              + event<initTimer>              [timerActive]             / (initTimerHandler,sendTimer)
-, "timerHandler"_s              + event<nextRoundTimer>         [timerActive]             / (nextRoundTimerHandler,sendTimer)
-, "timerHandler"_s              + event<pauseTimer>             [timerActive]             / (pauseTimerHandler,sendTimer)
-, "timerHandler"_s              + event<resumeTimer>            [timerActive]             / (resumeTimerHandler,sendTimer)
+,*"timerHandler"_s              + event<initTimer>              [timerActive]             / (initTimerHandler)
+, "timerHandler"_s              + event<nextRoundTimer>         [timerActive]             / (nextRoundTimerHandler)
+, "timerHandler"_s              + event<pauseTimer>             [timerActive]             / (pauseTimerHandler)
+, "timerHandler"_s              + event<resumeTimer>            [timerActive]             / (resumeTimerHandler)
+, "timerHandler"_s              + event<sendTimerEv>            [timerActive]             / (sendTimer)
 
 // clang-format on   
     );
