@@ -628,8 +628,6 @@ auto const blockOnlyDef = [] (durak::Game &game, std::vector<GameUser> &_gameUse
 
 struct PassMachine
 {
-  // TODO rework this passing server should send moves and client should show them. use tests to check whats wrong and so on
-  // TODO passing not allowed for player if defend  does not beat a card and takes cards and one player passes the other player plays a card than passes some how the other player can not pass again.
 
   auto
   operator() () const
@@ -638,10 +636,10 @@ struct PassMachine
     return make_transition_table (
         // clang-format off
 /*--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/      
-* "doNotStartAtConstruction"_s  + event<start>                                            /roundStartSendAllowedMovesAndGameData                                            = state<Chill>    
+* "doNotStartAtConstruction"_s  + event<start>                                            /roundStartSendAllowedMovesAndGameData                    = state<Chill>    
 , state<Chill>                  + on_entry<_>                                             /(resetPassStateMachineData,process (nextRoundTimer{}))           
-, state<Chill>                  + event<askDef>                                                                                       = state<AskDef>
-, state<Chill>                  + event<askAttackAndAssist>                                                                           = state<AskAttackAndAssist>
+, state<Chill>                  + event<askDef>                                                                                                     = state<AskDef>
+, state<Chill>                  + event<askAttackAndAssist>                                                                                         = state<AskAttackAndAssist>
 , state<Chill>                  + event<attackPass>                                       /(setAttackPass,checkData)
 , state<Chill>                  + event<assistPass>                                       /(setAssistPass,checkData)
 , state<Chill>                  + event<defendPass>                                       / handleDefendPass                                         
@@ -651,14 +649,14 @@ struct PassMachine
 /*--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/      
 , state<AskDef>                 + on_entry<_>                                             / startAskDef
 , state<AskDef>                 + event<defendAnswerYes>                                  / blockOnlyDef                                            = state<AskAttackAndAssist>
-, state<AskDef>                 + event<defendAnswerNo>                                   / handleDefendSuccess                         = state<Chill>
+, state<AskDef>                 + event<defendAnswerNo>                                   / handleDefendSuccess                                     = state<Chill>
 , state<AskDef>                 + event<userRelogged>                                     / (userReloggedInAskDef,sendTimer)
 /*--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/      
 , state<AskAttackAndAssist>     + on_entry<_>                                             / startAskAttackAndAssist
 , state<AskAttackAndAssist>     + event<attackPass>                                       /(setAttackAnswer,checkAttackAndAssistAnswer)
 , state<AskAttackAndAssist>     + event<assistPass>                                       /(setAssistAnswer,checkAttackAndAssistAnswer)
 , state<AskAttackAndAssist>     + event<attack>                                           / doAttackAskAttackAndAssist 
-, state<AskAttackAndAssist>     + event<chill>                                                                                          =state<Chill>
+, state<AskAttackAndAssist>     + event<chill>                                                                                                      =state<Chill>
 , state<AskAttackAndAssist>     + event<userRelogged>                                     / (userReloggedInAskAttackAssist,sendTimer)
 /*--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/      
 ,*"leaveGameHandler"_s          + event<leaveGame>                                        / userLeftGame                                
