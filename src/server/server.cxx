@@ -103,6 +103,7 @@ Server::writeToClient (std::shared_ptr<User> user, std::weak_ptr<SSLWebsocket> &
     {
       while (not connection.expired ())
         {
+          // TODO this is polling because we check every 100 milli seconds. We can replace this with 
           auto timer = steady_timer (co_await this_coro::executor);
           auto const waitForNewMessagesToSend = std::chrono::milliseconds{ 100 };
           timer.expires_after (waitForNewMessagesToSend);
