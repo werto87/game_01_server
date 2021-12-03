@@ -217,7 +217,6 @@ auto const resumeTimerHandler = [] (resumeTimer const &resumeTimerEv, durak::Gam
   ranges::for_each (_gameUsers, [&game, &_gameUsers, playersToResume = resumeTimerEv.playersToResume, gameOverCallback] (auto &gameUser) {
     if (ranges::find (playersToResume, gameUser._user->accountName.value ()) != playersToResume.end ())
       {
-        std::cout << " user:" << gameUser._user->accountName.value () << std::endl;
         if (gameUser._pausedTime)
           {
             gameUser._timer->expires_after (gameUser._pausedTime.value ());

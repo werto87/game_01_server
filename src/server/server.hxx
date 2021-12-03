@@ -39,7 +39,7 @@ private:
   boost::asio::thread_pool &_pool;
   boost::asio::ip::tcp::endpoint _endpoint{};
   std::list<std::shared_ptr<User>> users{};
-  std::list<GameLobby> gameLobbys{};
+  std::list<GameLobby> gameLobbies{};
   std::list<GameMachine> games{};
 };
 

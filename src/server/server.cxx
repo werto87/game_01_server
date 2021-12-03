@@ -75,7 +75,7 @@ Server::readFromClient (std::list<std::shared_ptr<User>>::iterator user, SSLWebs
           // timer.expires_after (10s);
           // co_await timer.async_wait (use_awaitable);
           auto readResult = co_await my_read (connection);
-          co_await handleMessage (readResult, _io_context, _pool, users, *user, gameLobbys, games);
+          co_await handleMessage (readResult, _io_context, _pool, users, *user, gameLobbies, games);
         }
     }
   catch (std::exception &e)
@@ -103,7 +103,7 @@ Server::writeToClient (std::shared_ptr<User> user, std::weak_ptr<SSLWebsocket> &
     {
       while (not connection.expired ())
         {
-          // TODO this is polling because we check every 100 milli seconds. We can replace this with 
+          // TODO this is polling because we check every 100 milli seconds. We can replace this with
           auto timer = steady_timer (co_await this_coro::executor);
           auto const waitForNewMessagesToSend = std::chrono::milliseconds{ 100 };
           timer.expires_after (waitForNewMessagesToSend);

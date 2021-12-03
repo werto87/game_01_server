@@ -1,5 +1,6 @@
 #include "src/server/gameLobby.hxx"
 #include <algorithm>
+#include <chrono>
 #include <iterator>
 #include <range/v3/algorithm/any_of.hpp>
 #include <range/v3/algorithm/count_if.hpp>
@@ -33,28 +34,16 @@ GameLobby::accountNames () const
   return result;
 }
 
-std::string
-GameLobby::gameLobbyAdminAccountName () const
+bool
+GameLobby::isGameLobbyAdmin (std::string const &accountName) const
 {
-  return _users.front ()->accountName.value ();
+  return lobbyAdminType == LobbyAdminType::FirstUserInLobbyUsers && _users.front ()->accountName.value () == accountName;
 }
 
 size_t
 GameLobby::maxUserCount () const
 {
   return _maxUserCount;
-}
-
-std::string const &
-GameLobby::gameLobbyPassword () const
-{
-  return _password;
-}
-
-std::string const &
-GameLobby::gameLobbyName () const
-{
-  return _name;
 }
 
 std::optional<std::string>
@@ -81,7 +70,7 @@ GameLobby::tryToAddUser (std::shared_ptr<User> const &user)
 bool
 GameLobby::tryToRemoveUser (std::string const &userWhoTriesToRemove, std::string const &userToRemoveName)
 {
-  if (userWhoTriesToRemove == gameLobbyAdminAccountName () && userWhoTriesToRemove != userToRemoveName)
+  if (isGameLobbyAdmin (userWhoTriesToRemove) && userWhoTriesToRemove != userToRemoveName)
     {
       if (auto userToRemoveFromLobby = ranges::find_if (_users, [&userToRemoveName] (auto const &user) { return userToRemoveName == user->accountName; }); userToRemoveFromLobby != _users.end ())
         {
@@ -104,12 +93,6 @@ GameLobby::tryToRemoveAdminAndSetNewAdmin ()
     {
       return false;
     }
-}
-
-bool
-GameLobby::hasPassword () const
-{
-  return not _password.empty ();
 }
 
 void
@@ -144,4 +127,43 @@ GameLobby::relogUser (std::shared_ptr<User> &user)
     {
       throw std::logic_error{ "can not relog user beacuse he is not logged in the create game lobby" };
     }
+}
+
+boost::asio::awaitable<void>
+runTimer (std::shared_ptr<boost::asio::system_timer> timer, std::function<void ()> gameOverCallback)
+{
+  try
+    {
+      co_await timer->async_wait (boost::asio::use_awaitable);
+      gameOverCallback ();
+    }
+  catch (boost::system::system_error &e)
+    {
+      using namespace boost::system::errc;
+      if (operation_canceled == e.code ())
+        {
+          // swallow cancel
+        }
+      else
+        {
+          std::cout << "error in timer boost::system::errc: " << e.code () << std::endl;
+          abort ();
+        }
+    }
+}
+
+void
+GameLobby::startTimerToAcceptTheInvite (boost::asio::io_context &io_context, std::function<void ()> gameOverCallback)
+{
+
+  _timer = std::make_shared<boost::asio::system_timer> (io_context);
+  _timer->expires_after (std::chrono::seconds{ 10 });
+  co_spawn (
+      _timer->get_executor (), [&] () { return runTimer (_timer, gameOverCallback); }, boost::asio::detached);
+}
+
+void
+GameLobby::cancelTimer ()
+{
+  _timer->cancel ();
 }

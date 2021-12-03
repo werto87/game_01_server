@@ -12,16 +12,23 @@
 #include <string>
 struct GameLobby
 {
-  GameLobby (std::string name, std::string password) : _name{ std::move (name) }, _password (std::move (password)) {}
+
+  GameLobby () = default;
+  GameLobby (std::string name, std::string password) : name{ std::move (name) }, password (std::move (password)) {}
+
+  enum struct LobbyAdminType
+  {
+    FirstUserInLobbyUsers,
+    MatchmakingSystem
+  };
 
   std::string const &gameLobbyName () const;
   std::string const &gameLobbyPassword () const;
-  bool hasPassword () const;
   size_t maxUserCount () const;
   std::optional<std::string> setMaxUserCount (size_t userMaxCount);
 
   std::vector<std::string> accountNames () const;
-  std::string gameLobbyAdminAccountName () const;
+  bool isGameLobbyAdmin (std::string const &accountName) const;
   std::optional<std::string> tryToAddUser (std::shared_ptr<User> const &user);
   bool tryToRemoveUser (std::string const &userWhoTriesToRemove, std::string const &userToRemoveName);
   bool removeUser (std::shared_ptr<User> const &user);
@@ -29,14 +36,19 @@ struct GameLobby
   void sendToAllAccountsInGameLobby (std::string const &message);
   size_t accountCount ();
   void relogUser (std::shared_ptr<User> &user);
+  void startTimerToAcceptTheInvite (boost::asio::io_context &io_context, std::function<void ()> gameOverCallback);
+  void cancelTimer();
 
   std::vector<std::shared_ptr<User>> _users{};
   durak::GameOption gameOption{};
   TimerOption timerOption{};
+  std::vector<std::shared_ptr<User>> readyUsers{};
+  LobbyAdminType lobbyAdminType = LobbyAdminType::FirstUserInLobbyUsers;
+  std::optional<std::string> name{};
+  std::string password{};
 
 private:
-  std::string _name{};
-  std::string _password{};
+  std::shared_ptr<boost::asio::system_timer> _timer;
   size_t _maxUserCount{ 2 };
 };
 

@@ -2,6 +2,7 @@
 #include "src/database/database.hxx"
 #include "src/game/logic/durakStateMachineState.hxx"
 #include "src/pw_hash/passwordHash.hxx"
+#include "src/server/gameLobby.hxx"
 #include "src/util.hxx"
 #include <algorithm>
 #include <boost/algorithm/algorithm.hpp>
@@ -21,6 +22,7 @@
 #include <boost/serialization/optional.hpp>
 #include <boost/serialization/vector.hpp>
 #include <boost/type_index.hpp>
+#include <boost/uuid/uuid.hpp>
 #include <confu_json/confu_json.hxx>
 #include <crypt.h>
 #include <durak/game.hxx>
@@ -35,7 +37,10 @@
 #include <pipes/pipes.hpp>
 #include <pipes/push_back.hpp>
 #include <pipes/transform.hpp>
+#include <range/v3/algorithm/copy_if.hpp>
+#include <range/v3/algorithm/find_if.hpp>
 #include <range/v3/all.hpp>
+#include <range/v3/iterator/insert_iterators.hpp>
 #include <range/v3/range.hpp>
 #include <range/v3/range_fwd.hpp>
 #include <range/v3/view/filter.hpp>
@@ -74,12 +79,13 @@ removeGameIfItIsOver (std::string const &accountName, std::list<GameMachine> &ga
 }
 
 boost::asio::awaitable<void>
-handleMessage (std::string const &msg, boost::asio::io_context &io_context, boost::asio::thread_pool &pool, std::list<std::shared_ptr<User>> &users, std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys, std::list<GameMachine> &gameMachines)
+handleMessage (std::string const &msg, boost::asio::io_context &io_context, boost::asio::thread_pool &pool, std::list<std::shared_ptr<User>> &users, std::shared_ptr<User> user, std::list<GameLobby> &gameLobbies, std::list<GameMachine> &gameMachines)
 {
   std::vector<std::string> splitMesssage{};
   boost::algorithm::split (splitMesssage, msg, boost::is_any_of ("|"));
   if (splitMesssage.size () == 2)
     {
+      // TODO diferentiate between logged in and not logged user actions
       auto const &typeToSearch = splitMesssage.at (0);
       auto const &objectAsString = splitMesssage.at (1);
       if (typeToSearch == "CreateAccount")
@@ -90,7 +96,7 @@ handleMessage (std::string const &msg, boost::asio::io_context &io_context, boos
         }
       else if (typeToSearch == "LoginAccount")
         {
-          co_await loginAccount (objectAsString, io_context, users, user, pool, gameLobbys, gameMachines);
+          co_await loginAccount (objectAsString, io_context, users, user, pool, gameLobbies, gameMachines);
           user->ignoreCreateAccount = false;
           user->ignoreLogin = false;
         }
@@ -112,27 +118,27 @@ handleMessage (std::string const &msg, boost::asio::io_context &io_context, boos
         }
       else if (typeToSearch == "CreateGameLobby")
         {
-          createGameLobby (objectAsString, user, gameLobbys);
+          createGameLobby (objectAsString, user, gameLobbies);
         }
       else if (typeToSearch == "JoinGameLobby")
         {
-          joinGameLobby (objectAsString, user, gameLobbys);
+          joinGameLobby (objectAsString, user, gameLobbies);
         }
       else if (typeToSearch == "SetMaxUserSizeInCreateGameLobby")
         {
-          setMaxUserSizeInCreateGameLobby (objectAsString, user, gameLobbys);
+          setMaxUserSizeInCreateGameLobby (objectAsString, user, gameLobbies);
         }
       else if (typeToSearch == "GameOption")
         {
-          setGameOption (objectAsString, user, gameLobbys);
+          setGameOption (objectAsString, user, gameLobbies);
         }
       else if (typeToSearch == "LeaveGameLobby")
         {
-          leaveGameLobby (user, gameLobbys);
+          leaveGameLobby (user, gameLobbies);
         }
       else if (typeToSearch == "RelogTo")
         {
-          relogTo (objectAsString, user, gameLobbys, gameMachines);
+          relogTo (objectAsString, user, gameLobbies, gameMachines);
         }
       else if (typeToSearch == "LoginAccountCancel")
         {
@@ -144,7 +150,7 @@ handleMessage (std::string const &msg, boost::asio::io_context &io_context, boos
         }
       else if (typeToSearch == "CreateGame")
         {
-          createGame (user, gameLobbys, gameMachines, io_context);
+          createGame (user, gameLobbies, gameMachines, io_context);
         }
       else if (typeToSearch == "DurakAttack")
         {
@@ -176,7 +182,17 @@ handleMessage (std::string const &msg, boost::asio::io_context &io_context, boos
         }
       else if (typeToSearch == "SetTimerOption")
         {
-          setTimerOption (objectAsString, user, gameLobbys);
+          setTimerOption (objectAsString, user, gameLobbies);
+        }
+
+      else if (typeToSearch == "JoinQuickGameQueue")
+        {
+          joinQuickGameQueue (user, gameLobbies, io_context);
+        }
+
+      else if (typeToSearch == "WantsToJoinGame")
+        {
+          wantsToJoinGame (objectAsString, user, gameLobbies, gameMachines, io_context);
         }
       else
         {
@@ -235,7 +251,7 @@ createAccountAndLogin (std::string objectAsString, boost::asio::io_context &io_c
 }
 
 boost::asio::awaitable<void>
-loginAccount (std::string objectAsString, boost::asio::io_context &io_context, std::list<std::shared_ptr<User>> &users, std::shared_ptr<User> user, boost::asio::thread_pool &pool, std::list<GameLobby> &gameLobbys, std::list<GameMachine> &gameMachines)
+loginAccount (std::string objectAsString, boost::asio::io_context &io_context, std::list<std::shared_ptr<User>> &users, std::shared_ptr<User> user, boost::asio::thread_pool &pool, std::list<GameLobby> &gameLobbies, std::list<GameMachine> &gameMachines)
 {
   auto loginAccountObject = stringToObject<shared_class::LoginAccount> (objectAsString);
   soci::session sql (soci::sqlite3, databaseName);
@@ -258,12 +274,12 @@ loginAccount (std::string objectAsString, boost::asio::io_context &io_context, s
               else
                 {
                   user->accountName = account->accountName;
-                  if (auto gameLobbyWithUser = ranges::find_if (gameLobbys,
+                  if (auto gameLobbyWithUser = ranges::find_if (gameLobbies,
                                                                 [accountName = user->accountName] (auto const &gameLobby) {
                                                                   auto const &accountNames = gameLobby.accountNames ();
                                                                   return ranges::find_if (accountNames, [&accountName] (auto const &nameToCheck) { return nameToCheck == accountName; }) != accountNames.end ();
                                                                 });
-                      gameLobbyWithUser != gameLobbys.end ())
+                      gameLobbyWithUser != gameLobbies.end ())
                     {
                       user->msgQueue.push_back (objectToStringWithObjectName (shared_class::WantToRelog{ loginAccountObject.accountName, "Create Game Lobby" }));
                       co_return;
@@ -401,16 +417,16 @@ errorInGameOption (durak::GameOption const &gameOption)
 }
 
 void
-createGame (std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys, std::list<GameMachine> &gameMachines, boost::asio::io_context &io_context)
+createGame (std::shared_ptr<User> user, std::list<GameLobby> &gameLobbies, std::list<GameMachine> &gameMachines, boost::asio::io_context &io_context)
 {
-  if (auto gameLobbyWithUser = ranges::find_if (gameLobbys,
+  if (auto gameLobbyWithUser = ranges::find_if (gameLobbies,
                                                 [accountName = user->accountName] (auto const &gameLobby) {
                                                   auto const &accountNames = gameLobby.accountNames ();
                                                   return ranges::find_if (accountNames, [&accountName] (auto const &nameToCheck) { return nameToCheck == accountName; }) != accountNames.end ();
                                                 });
-      gameLobbyWithUser != gameLobbys.end ())
+      gameLobbyWithUser != gameLobbies.end ())
     {
-      if (gameLobbyWithUser->gameLobbyAdminAccountName () == user->accountName)
+      if (gameLobbyWithUser->isGameLobbyAdmin (user->accountName.value ()))
         {
           if (gameLobbyWithUser->accountNames ().size () >= 2)
             {
@@ -436,7 +452,7 @@ createGame (std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys, std::l
                         gameMachines.erase (gameWithUser);
                       }
                   });
-                  gameLobbys.erase (gameLobbyWithUser);
+                  gameLobbies.erase (gameLobbyWithUser);
                 }
             }
           else
@@ -456,24 +472,24 @@ createGame (std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys, std::l
 }
 
 void
-createGameLobby (std::string const &objectAsString, std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys)
+createGameLobby (std::string const &objectAsString, std::shared_ptr<User> user, std::list<GameLobby> &gameLobbies)
 {
   auto createGameLobbyObject = stringToObject<shared_class::CreateGameLobby> (objectAsString);
-  if (ranges::find_if (gameLobbys, [gameLobbyName = createGameLobbyObject.name, lobbyPassword = createGameLobbyObject.password] (auto const &_gameLobby) { return _gameLobby.gameLobbyName () == gameLobbyName && _gameLobby.gameLobbyPassword () == lobbyPassword; }) == gameLobbys.end ())
+  if (ranges::find_if (gameLobbies, [gameLobbyName = createGameLobbyObject.name, lobbyPassword = createGameLobbyObject.password] (auto const &_gameLobby) { return _gameLobby.name && _gameLobby.name == gameLobbyName; }) == gameLobbies.end ())
     {
-      if (auto gameLobbyWithUser = ranges::find_if (gameLobbys,
+      if (auto gameLobbyWithUser = ranges::find_if (gameLobbies,
                                                     [accountName = user->accountName] (auto const &gameLobby) {
                                                       auto const &accountNames = gameLobby.accountNames ();
                                                       return ranges::find_if (accountNames, [&accountName] (auto const &nameToCheck) { return nameToCheck == accountName; }) != accountNames.end ();
                                                     });
-          gameLobbyWithUser != gameLobbys.end ())
+          gameLobbyWithUser != gameLobbies.end ())
         {
-          user->msgQueue.push_back (objectToStringWithObjectName (shared_class::CreateGameLobbyError{ { "account has already a game lobby with the name: " + gameLobbyWithUser->gameLobbyName () } }));
+          user->msgQueue.push_back (objectToStringWithObjectName (shared_class::CreateGameLobbyError{ { "account has already a game lobby with the name: " + gameLobbyWithUser->name.value () } }));
           return;
         }
       else
         {
-          auto &newGameLobby = gameLobbys.emplace_back (GameLobby{ createGameLobbyObject.name, createGameLobbyObject.password });
+          auto &newGameLobby = gameLobbies.emplace_back (GameLobby{ createGameLobbyObject.name, createGameLobbyObject.password });
           if (newGameLobby.tryToAddUser (user))
             {
               throw std::logic_error{ "user can not join lobby which he created" };
@@ -483,7 +499,7 @@ createGameLobby (std::string const &objectAsString, std::shared_ptr<User> user, 
               auto result = std::vector<std::string>{};
               auto usersInGameLobby = shared_class::UsersInGameLobby{};
               usersInGameLobby.maxUserSize = newGameLobby.maxUserCount ();
-              usersInGameLobby.name = newGameLobby.gameLobbyName ();
+              usersInGameLobby.name = newGameLobby.name.value ();
               usersInGameLobby.durakGameOption = newGameLobby.gameOption;
               ranges::transform (newGameLobby.accountNames (), ranges::back_inserter (usersInGameLobby.users), [] (auto const &accountName) { return shared_class::UserInGameLobby{ accountName }; });
               user->msgQueue.push_back (objectToStringWithObjectName (shared_class::JoinGameLobbySuccess{}));
@@ -500,10 +516,10 @@ createGameLobby (std::string const &objectAsString, std::shared_ptr<User> user, 
 }
 
 void
-joinGameLobby (std::string const &objectAsString, std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys)
+joinGameLobby (std::string const &objectAsString, std::shared_ptr<User> user, std::list<GameLobby> &gameLobbies)
 {
   auto joinGameLobbyObject = stringToObject<shared_class::JoinGameLobby> (objectAsString);
-  if (auto gameLobby = ranges::find_if (gameLobbys, [gameLobbyName = joinGameLobbyObject.name, lobbyPassword = joinGameLobbyObject.password] (auto const &_gameLobby) { return _gameLobby.gameLobbyName () == gameLobbyName && _gameLobby.gameLobbyPassword () == lobbyPassword; }); gameLobby != gameLobbys.end ())
+  if (auto gameLobby = ranges::find_if (gameLobbies, [gameLobbyName = joinGameLobbyObject.name, lobbyPassword = joinGameLobbyObject.password] (auto const &_gameLobby) { return _gameLobby.name && _gameLobby.name == gameLobbyName && _gameLobby.password == lobbyPassword; }); gameLobby != gameLobbies.end ())
     {
       if (auto error = gameLobby->tryToAddUser (user))
         {
@@ -515,7 +531,7 @@ joinGameLobby (std::string const &objectAsString, std::shared_ptr<User> user, st
           user->msgQueue.push_back (objectToStringWithObjectName (shared_class::JoinGameLobbySuccess{}));
           auto usersInGameLobby = shared_class::UsersInGameLobby{};
           usersInGameLobby.maxUserSize = gameLobby->maxUserCount ();
-          usersInGameLobby.name = gameLobby->gameLobbyName ();
+          usersInGameLobby.name = gameLobby->name.value ();
           usersInGameLobby.durakGameOption = gameLobby->gameOption;
           ranges::transform (gameLobby->accountNames (), ranges::back_inserter (usersInGameLobby.users), [] (auto const &accountName) { return shared_class::UserInGameLobby{ accountName }; });
           gameLobby->sendToAllAccountsInGameLobby (objectToStringWithObjectName (usersInGameLobby));
@@ -531,18 +547,18 @@ joinGameLobby (std::string const &objectAsString, std::shared_ptr<User> user, st
 }
 
 void
-setMaxUserSizeInCreateGameLobby (std::string const &objectAsString, std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys)
+setMaxUserSizeInCreateGameLobby (std::string const &objectAsString, std::shared_ptr<User> user, std::list<GameLobby> &gameLobbies)
 {
   auto setMaxUserSizeInCreateGameLobbyObject = stringToObject<shared_class::SetMaxUserSizeInCreateGameLobby> (objectAsString);
   auto accountNameToSearch = user->accountName.value ();
-  if (auto gameLobbyWithAccount = ranges::find_if (gameLobbys,
+  if (auto gameLobbyWithAccount = ranges::find_if (gameLobbies,
                                                    [accountName = user->accountName] (auto const &gameLobby) {
                                                      auto const &accountNames = gameLobby.accountNames ();
                                                      return ranges::find_if (accountNames, [&accountName] (auto const &nameToCheck) { return nameToCheck == accountName; }) != accountNames.end ();
                                                    });
-      gameLobbyWithAccount != gameLobbys.end ())
+      gameLobbyWithAccount != gameLobbies.end ())
     {
-      if (gameLobbyWithAccount->gameLobbyAdminAccountName () == user->accountName)
+      if (gameLobbyWithAccount->isGameLobbyAdmin (user->accountName.value ()))
         {
           if (auto errorMessage = gameLobbyWithAccount->setMaxUserCount (setMaxUserSizeInCreateGameLobbyObject.maxUserSize))
             {
@@ -569,18 +585,18 @@ setMaxUserSizeInCreateGameLobby (std::string const &objectAsString, std::shared_
 }
 
 void
-setGameOption (std::string const &objectAsString, std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys)
+setGameOption (std::string const &objectAsString, std::shared_ptr<User> user, std::list<GameLobby> &gameLobbies)
 {
   auto gameOption = stringToObject<durak::GameOption> (objectAsString);
   auto accountNameToSearch = user->accountName.value ();
-  if (auto gameLobbyWithAccount = ranges::find_if (gameLobbys,
+  if (auto gameLobbyWithAccount = ranges::find_if (gameLobbies,
                                                    [accountName = user->accountName] (auto const &gameLobby) {
                                                      auto const &accountNames = gameLobby.accountNames ();
                                                      return ranges::find_if (accountNames, [&accountName] (auto const &nameToCheck) { return nameToCheck == accountName; }) != accountNames.end ();
                                                    });
-      gameLobbyWithAccount != gameLobbys.end ())
+      gameLobbyWithAccount != gameLobbies.end ())
     {
-      if (gameLobbyWithAccount->gameLobbyAdminAccountName () == user->accountName)
+      if (gameLobbyWithAccount->isGameLobbyAdmin (user->accountName.value ()))
         {
           gameLobbyWithAccount->gameOption = gameOption;
           gameLobbyWithAccount->sendToAllAccountsInGameLobby (objectToStringWithObjectName (gameOption));
@@ -600,18 +616,18 @@ setGameOption (std::string const &objectAsString, std::shared_ptr<User> user, st
 }
 
 void
-setTimerOption (std::string const &objectAsString, std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys)
+setTimerOption (std::string const &objectAsString, std::shared_ptr<User> user, std::list<GameLobby> &gameLobbies)
 {
   auto setTimerOptionObject = stringToObject<shared_class::SetTimerOption> (objectAsString);
   auto accountNameToSearch = user->accountName.value ();
-  if (auto gameLobbyWithAccount = ranges::find_if (gameLobbys,
+  if (auto gameLobbyWithAccount = ranges::find_if (gameLobbies,
                                                    [accountName = user->accountName] (auto const &gameLobby) {
                                                      auto const &accountNames = gameLobby.accountNames ();
                                                      return ranges::find_if (accountNames, [&accountName] (auto const &nameToCheck) { return nameToCheck == accountName; }) != accountNames.end ();
                                                    });
-      gameLobbyWithAccount != gameLobbys.end ())
+      gameLobbyWithAccount != gameLobbies.end ())
     {
-      if (gameLobbyWithAccount->gameLobbyAdminAccountName () == user->accountName)
+      if (gameLobbyWithAccount->isGameLobbyAdmin (user->accountName.value ()))
         {
           using namespace std::chrono;
           gameLobbyWithAccount->timerOption = TimerOption{ setTimerOptionObject.timerType, seconds (setTimerOptionObject.timeAtStartInSeconds), seconds (setTimerOptionObject.timeForEachRoundInSeconds) };
@@ -629,31 +645,39 @@ setTimerOption (std::string const &objectAsString, std::shared_ptr<User> user, s
 }
 
 void
-leaveGameLobby (std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys)
+leaveGameLobby (std::shared_ptr<User> user, std::list<GameLobby> &gameLobbies)
 {
-  if (auto gameLobbyWithAccount = ranges::find_if (gameLobbys,
+  if (auto gameLobbyWithAccount = ranges::find_if (gameLobbies,
                                                    [accountName = user->accountName] (auto const &gameLobby) {
                                                      auto const &accountNames = gameLobby.accountNames ();
                                                      return ranges::find_if (accountNames, [&accountName] (auto const &nameToCheck) { return nameToCheck == accountName; }) != accountNames.end ();
                                                    });
-      gameLobbyWithAccount != gameLobbys.end ())
+      gameLobbyWithAccount != gameLobbies.end ())
     {
-      gameLobbyWithAccount->removeUser (user);
-      if (gameLobbyWithAccount->accountCount () == 0)
+      if (gameLobbyWithAccount->lobbyAdminType == GameLobby::LobbyAdminType::FirstUserInLobbyUsers)
         {
-          gameLobbys.erase (gameLobbyWithAccount);
+          gameLobbyWithAccount->removeUser (user);
+          if (gameLobbyWithAccount->accountCount () == 0)
+            {
+              gameLobbies.erase (gameLobbyWithAccount);
+            }
+          else
+            {
+              auto usersInGameLobby = shared_class::UsersInGameLobby{};
+              usersInGameLobby.maxUserSize = gameLobbyWithAccount->maxUserCount ();
+              usersInGameLobby.name = gameLobbyWithAccount->name.value ();
+              usersInGameLobby.durakGameOption = gameLobbyWithAccount->gameOption;
+              ranges::transform (gameLobbyWithAccount->accountNames (), ranges::back_inserter (usersInGameLobby.users), [] (auto const &accountName) { return shared_class::UserInGameLobby{ accountName }; });
+              gameLobbyWithAccount->sendToAllAccountsInGameLobby (objectToStringWithObjectName (usersInGameLobby));
+            }
+          user->msgQueue.push_back (objectToStringWithObjectName (shared_class::LeaveGameLobbySuccess{}));
+          return;
         }
       else
         {
-          auto usersInGameLobby = shared_class::UsersInGameLobby{};
-          usersInGameLobby.maxUserSize = gameLobbyWithAccount->maxUserCount ();
-          usersInGameLobby.name = gameLobbyWithAccount->gameLobbyName ();
-          usersInGameLobby.durakGameOption = gameLobbyWithAccount->gameOption;
-          ranges::transform (gameLobbyWithAccount->accountNames (), ranges::back_inserter (usersInGameLobby.users), [] (auto const &accountName) { return shared_class::UserInGameLobby{ accountName }; });
-          gameLobbyWithAccount->sendToAllAccountsInGameLobby (objectToStringWithObjectName (usersInGameLobby));
+          user->msgQueue.push_back (objectToStringWithObjectName (shared_class::LeaveGameLobbyError{ "not allowed to leave a game lobby which is controlled by the matchmaking system with leave game lobby" }));
+          return;
         }
-      user->msgQueue.push_back (objectToStringWithObjectName (shared_class::LeaveGameLobbySuccess{}));
-      return;
     }
   else
     {
@@ -663,15 +687,15 @@ leaveGameLobby (std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys)
 }
 
 void
-relogTo (std::string const &objectAsString, std::shared_ptr<User> user, std::list<GameLobby> &gameLobbys, std::list<GameMachine> &gameMachines)
+relogTo (std::string const &objectAsString, std::shared_ptr<User> user, std::list<GameLobby> &gameLobbies, std::list<GameMachine> &gameMachines)
 {
   auto relogToObject = stringToObject<shared_class::RelogTo> (objectAsString);
-  if (auto gameLobbyWithAccount = ranges::find_if (gameLobbys,
+  if (auto gameLobbyWithAccount = ranges::find_if (gameLobbies,
                                                    [accountName = user->accountName] (auto const &gameLobby) {
                                                      auto const &accountNames = gameLobby.accountNames ();
                                                      return ranges::find_if (accountNames, [&accountName] (auto const &nameToCheck) { return nameToCheck == accountName; }) != accountNames.end ();
                                                    });
-      gameLobbyWithAccount != gameLobbys.end ())
+      gameLobbyWithAccount != gameLobbies.end ())
     {
       if (relogToObject.wantsToRelog)
         {
@@ -679,7 +703,7 @@ relogTo (std::string const &objectAsString, std::shared_ptr<User> user, std::lis
           user->msgQueue.push_back (objectToStringWithObjectName (shared_class::RelogToCreateGameLobbySuccess{}));
           auto usersInGameLobby = shared_class::UsersInGameLobby{};
           usersInGameLobby.maxUserSize = gameLobbyWithAccount->maxUserCount ();
-          usersInGameLobby.name = gameLobbyWithAccount->gameLobbyName ();
+          usersInGameLobby.name = gameLobbyWithAccount->name.value ();
           usersInGameLobby.durakGameOption = gameLobbyWithAccount->gameOption;
           ranges::transform (gameLobbyWithAccount->accountNames (), ranges::back_inserter (usersInGameLobby.users), [] (auto const &accountName) { return shared_class::UserInGameLobby{ accountName }; });
           user->msgQueue.push_back (objectToStringWithObjectName (shared_class::SetTimerOption{ gameLobbyWithAccount->timerOption.timerType, boost::numeric_cast<int> (gameLobbyWithAccount->timerOption.timeAtStart.count ()), boost::numeric_cast<int> (gameLobbyWithAccount->timerOption.timeForEachRound.count ()) }));
@@ -691,13 +715,13 @@ relogTo (std::string const &objectAsString, std::shared_ptr<User> user, std::lis
           gameLobbyWithAccount->removeUser (user);
           if (gameLobbyWithAccount->accountCount () == 0)
             {
-              gameLobbys.erase (gameLobbyWithAccount);
+              gameLobbies.erase (gameLobbyWithAccount);
             }
           else
             {
               auto usersInGameLobby = shared_class::UsersInGameLobby{};
               usersInGameLobby.maxUserSize = gameLobbyWithAccount->maxUserCount ();
-              usersInGameLobby.name = gameLobbyWithAccount->gameLobbyName ();
+              usersInGameLobby.name = gameLobbyWithAccount->name.value ();
               usersInGameLobby.durakGameOption = gameLobbyWithAccount->gameOption;
               ranges::transform (gameLobbyWithAccount->accountNames (), ranges::back_inserter (usersInGameLobby.users), [] (auto const &accountName) { return shared_class::UserInGameLobby{ accountName }; });
               gameLobbyWithAccount->sendToAllAccountsInGameLobby (objectToStringWithObjectName (usersInGameLobby));
@@ -855,5 +879,137 @@ durakLeaveGame (std::shared_ptr<User> user, std::list<GameMachine> &gameMachines
   else
     {
       user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakLeaveGameError{ "Could not find a game for Account Name: " + user->accountName.value () }));
+    }
+}
+
+void
+joinQuickGameQueue (std::shared_ptr<User> user, std::list<GameLobby> &gameLobbies, boost::asio::io_context &io_context)
+{
+  if (not user->accountName)
+    {
+      user->accountName = to_string (boost::uuids::random_generator () ());
+      user->msgQueue.push_back (objectToStringWithObjectName (shared_class::LoginAccountSuccess{ user->accountName.value () }));
+    }
+  if (ranges::find_if (gameLobbies,
+                       [accountName = user->accountName] (auto const &gameLobby) {
+                         auto const &accountNames = gameLobby.accountNames ();
+                         return ranges::find_if (accountNames, [&accountName] (auto const &nameToCheck) { return nameToCheck == accountName; }) != accountNames.end ();
+                       })
+      == gameLobbies.end ())
+    {
+      if (auto gameLobbyToAddUser = ranges::find_if (gameLobbies, [] (GameLobby const &gameLobby) { return gameLobby.lobbyAdminType == GameLobby::LobbyAdminType::MatchmakingSystem && gameLobby._users.size () < gameLobby.maxUserCount (); }); gameLobbyToAddUser != gameLobbies.end ())
+        {
+          if (auto error = gameLobbyToAddUser->tryToAddUser (user))
+            {
+              user->msgQueue.push_back (objectToStringWithObjectName (shared_class::JoinGameLobbyError{ user->accountName.value (), error.value () }));
+            }
+          else
+            {
+              user->msgQueue.push_back (objectToStringWithObjectName (shared_class::JoinQuickGameQueueSuccess{}));
+              if (gameLobbyToAddUser->_users.size () == gameLobbyToAddUser->maxUserCount ())
+                {
+                  gameLobbyToAddUser->sendToAllAccountsInGameLobby (objectToStringWithObjectName (shared_class::AskIfUserWantsToJoinGame{}));
+                  gameLobbyToAddUser->startTimerToAcceptTheInvite (io_context, [gameLobbyToAddUser, &gameLobbies] () {
+                    auto usersToRemove = std::vector<std::shared_ptr<User>>{};
+                    ranges::copy_if (gameLobbyToAddUser->_users, ranges::back_inserter (usersToRemove), [usersWhichAccepted = gameLobbyToAddUser->readyUsers] (std::shared_ptr<User> const &user) {
+                      return ranges::find_if (usersWhichAccepted,
+                                              [user] (std::shared_ptr<User> const &userWhoAccepted) {
+                                                //
+                                                return user->accountName.value () == userWhoAccepted->accountName.value ();
+                                              })
+                             == usersWhichAccepted.end ();
+                    });
+                    for (auto const &userToRemove : usersToRemove)
+                      {
+                        userToRemove->msgQueue.push_back (objectToStringWithObjectName (shared_class::AskIfUserWantsToJoinGameTimeOut{}));
+                        gameLobbyToAddUser->removeUser (userToRemove);
+                      }
+                    if (gameLobbyToAddUser->_users.empty ())
+                      {
+                        gameLobbies.erase (gameLobbyToAddUser);
+                      }
+                  });
+                }
+            }
+        }
+      else
+        {
+          auto gameLobby = GameLobby{};
+          gameLobby.lobbyAdminType = GameLobby::LobbyAdminType::MatchmakingSystem;
+          if (auto error = gameLobby.tryToAddUser (user))
+            {
+              user->msgQueue.push_back (objectToStringWithObjectName (shared_class::JoinGameLobbyError{ user->accountName.value (), error.value () }));
+            }
+          gameLobbies.emplace_back (gameLobby);
+          user->msgQueue.push_back (objectToStringWithObjectName (shared_class::JoinQuickGameQueueSuccess{}));
+        }
+    }
+  else
+    {
+      user->msgQueue.push_back (objectToStringWithObjectName (shared_class::JoinQuickGameQueueError{ "User is allready in gamelobby" }));
+    }
+}
+
+void
+wantsToJoinGame (std::string const &objectAsString, std::shared_ptr<User> user, std::list<GameLobby> &gameLobbies, std::list<GameMachine> &gameMachines, boost::asio::io_context &io_context)
+{
+  if (auto gameLobby = ranges::find_if (gameLobbies,
+                                        [accountName = user->accountName] (auto const &gameLobby) {
+                                          auto const &accountNames = gameLobby.accountNames ();
+                                          return ranges::find_if (accountNames, [&accountName] (auto const &nameToCheck) { return nameToCheck == accountName; }) != accountNames.end ();
+                                        });
+      gameLobby != gameLobbies.end ())
+    {
+      if (stringToObject<shared_class::WantsToJoinGame> (objectAsString).answer)
+        {
+          if (ranges::find_if (gameLobby->readyUsers, [accountName = user->accountName.value ()] (std::shared_ptr<User> _user) { return _user->accountName == accountName; }) == gameLobby->readyUsers.end ())
+            {
+              gameLobby->readyUsers.push_back (user);
+              if (gameLobby->readyUsers.size () == gameLobby->_users.size ())
+                {
+                  gameLobby->cancelTimer ();
+                  ranges::for_each (gameLobby->_users, [] (auto &_user) { _user->msgQueue.push_back (objectToStringWithObjectName (shared_class::StartGame{})); });
+                  auto names = std::vector<std::string>{};
+                  ranges::transform (gameLobby->_users, ranges::back_inserter (names), [] (auto const &tempUser) { return tempUser->accountName.value (); });
+                  auto game = durak::Game{ std::move (names), gameLobby->gameOption };
+                  gameMachines.emplace_back (game, gameLobby->_users, io_context, gameLobby->timerOption, [accountName = user->accountName, &gameMachines] () {
+                    if (auto gameWithUser = ranges::find_if (gameMachines,
+                                                             [accountName] (auto const &gameMachine) {
+                                                               auto accountNames = std::vector<std::string>{};
+                                                               ranges::transform (gameMachine.getGameUsers (), ranges::back_inserter (accountNames), [] (auto const &gameUser) { return gameUser._user->accountName.value (); });
+                                                               return ranges::find_if (accountNames, [&accountName] (auto const &nameToCheck) { return nameToCheck == accountName; }) != accountNames.end ();
+                                                             });
+                        gameWithUser != gameMachines.end ())
+                      {
+                        gameMachines.erase (gameWithUser);
+                      }
+                  });
+                  gameLobbies.erase (gameLobby);
+                }
+            }
+          else
+            {
+              user->msgQueue.push_back (objectToStringWithObjectName (shared_class::WantsToJoinGameError{ "You already accepted to join the game" }));
+            }
+        }
+      else
+        {
+          gameLobby->cancelTimer ();
+          user->msgQueue.push_back (objectToStringWithObjectName (shared_class::GameStartCanceledRemovedFromQueue{}));
+          gameLobby->removeUser (user);
+          gameLobby->sendToAllAccountsInGameLobby (objectToStringWithObjectName (shared_class::GameStartCanceled{}));
+          if (gameLobby->_users.empty ())
+            {
+              gameLobbies.erase (gameLobby);
+            }
+          else
+            {
+              gameLobby->readyUsers.clear ();
+            }
+        }
+    }
+  else
+    {
+      user->msgQueue.push_back (objectToStringWithObjectName (shared_class::WantsToJoinGameError{ "No game to join" }));
     }
 }
