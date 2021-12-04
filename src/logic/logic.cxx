@@ -194,6 +194,11 @@ handleMessage (std::string const &msg, boost::asio::io_context &io_context, boos
         {
           wantsToJoinGame (objectAsString, user, gameLobbies, gameMachines, io_context);
         }
+      else if (typeToSearch == "LeaveQuickGameQueue")
+        {
+          leaveQuickGameQueue (user, gameLobbies);
+        }
+
       else
         {
           std::cout << "UnhandledMessage|{\"message\": \"" << msg << "\"}" << std::endl;
@@ -928,6 +933,10 @@ joinQuickGameQueue (std::shared_ptr<User> user, std::list<GameLobby> &gameLobbie
                       {
                         gameLobbies.erase (gameLobbyToAddUser);
                       }
+                    else
+                      {
+                        gameLobbyToAddUser->sendToAllAccountsInGameLobby (objectToStringWithObjectName (shared_class::GameStartCanceled{}));
+                      }
                   });
                 }
             }
@@ -994,22 +1003,41 @@ wantsToJoinGame (std::string const &objectAsString, std::shared_ptr<User> user, 
         }
       else
         {
-          gameLobby->cancelTimer ();
           user->msgQueue.push_back (objectToStringWithObjectName (shared_class::GameStartCanceledRemovedFromQueue{}));
           gameLobby->removeUser (user);
-          gameLobby->sendToAllAccountsInGameLobby (objectToStringWithObjectName (shared_class::GameStartCanceled{}));
+          gameLobby->cancelTimer ();
           if (gameLobby->_users.empty ())
             {
               gameLobbies.erase (gameLobby);
-            }
-          else
-            {
-              gameLobby->readyUsers.clear ();
             }
         }
     }
   else
     {
       user->msgQueue.push_back (objectToStringWithObjectName (shared_class::WantsToJoinGameError{ "No game to join" }));
+    }
+}
+
+void
+leaveQuickGameQueue (std::shared_ptr<User> user, std::list<GameLobby> &gameLobbies)
+{
+  if (auto gameLobby = ranges::find_if (gameLobbies,
+                                        [accountName = user->accountName] (auto const &gameLobby) {
+                                          auto const &accountNames = gameLobby.accountNames ();
+                                          return gameLobby.lobbyAdminType == GameLobby::LobbyAdminType::MatchmakingSystem && ranges::find_if (accountNames, [&accountName] (auto const &nameToCheck) { return nameToCheck == accountName; }) != accountNames.end ();
+                                        });
+      gameLobby != gameLobbies.end ())
+    {
+      user->msgQueue.push_back (objectToStringWithObjectName (shared_class::LeaveQuickGameQueueSuccess{}));
+      gameLobby->removeUser (user);
+      gameLobby->cancelTimer ();
+      if (gameLobby->_users.empty ())
+        {
+          gameLobbies.erase (gameLobby);
+        }
+    }
+  else
+    {
+      user->msgQueue.push_back (objectToStringWithObjectName (shared_class::LeaveQuickGameQueueError{ "User is not in queue" }));
     }
 }

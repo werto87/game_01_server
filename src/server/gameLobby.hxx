@@ -37,7 +37,8 @@ struct GameLobby
   size_t accountCount ();
   void relogUser (std::shared_ptr<User> &user);
   void startTimerToAcceptTheInvite (boost::asio::io_context &io_context, std::function<void ()> gameOverCallback);
-  void cancelTimer();
+  void cancelTimer ();
+  bool getWaitingForAnswerToStartGame () const;
 
   std::vector<std::shared_ptr<User>> _users{};
   durak::GameOption gameOption{};
@@ -49,6 +50,7 @@ struct GameLobby
 
 private:
   std::shared_ptr<boost::asio::system_timer> _timer;
+  bool waitingForAnswerToStartGame = false;
   size_t _maxUserCount{ 2 };
 };
 
