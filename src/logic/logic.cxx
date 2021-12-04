@@ -198,6 +198,10 @@ handleMessage (std::string const &msg, boost::asio::io_context &io_context, boos
         {
           leaveQuickGameQueue (user, gameLobbies);
         }
+      else if (typeToSearch == "LoginAsGuest")
+        {
+          loginAsGuest (user);
+        }
 
       else
         {
@@ -890,11 +894,6 @@ durakLeaveGame (std::shared_ptr<User> user, std::list<GameMachine> &gameMachines
 void
 joinQuickGameQueue (std::shared_ptr<User> user, std::list<GameLobby> &gameLobbies, boost::asio::io_context &io_context)
 {
-  if (not user->accountName)
-    {
-      user->accountName = to_string (boost::uuids::random_generator () ());
-      user->msgQueue.push_back (objectToStringWithObjectName (shared_class::LoginAccountSuccess{ user->accountName.value () }));
-    }
   if (ranges::find_if (gameLobbies,
                        [accountName = user->accountName] (auto const &gameLobby) {
                          auto const &accountNames = gameLobby.accountNames ();
@@ -1039,5 +1038,15 @@ leaveQuickGameQueue (std::shared_ptr<User> user, std::list<GameLobby> &gameLobbi
   else
     {
       user->msgQueue.push_back (objectToStringWithObjectName (shared_class::LeaveQuickGameQueueError{ "User is not in queue" }));
+    }
+}
+
+void
+loginAsGuest (std::shared_ptr<User> user)
+{
+  if (not user->accountName)
+    {
+      user->accountName = to_string (boost::uuids::random_generator () ());
+      user->msgQueue.push_back (objectToStringWithObjectName (shared_class::LoginAccountSuccess{ user->accountName.value () }));
     }
 }
