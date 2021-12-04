@@ -33,9 +33,9 @@ void durakLeaveGame (std::shared_ptr<User> user, std::list<GameMachine> &gameMac
 void loginAccountCancel (std::shared_ptr<User> user);
 void createAccountCancel (std::shared_ptr<User> user);
 void setTimerOption (std::string const &objectAsString, std::shared_ptr<User> user, std::list<GameLobby> &gameLobbies);
-void joinQuickGameQueue (std::shared_ptr<User> user, std::list<GameLobby> &gameLobbies, boost::asio::io_context &io_context);
+void joinMatchMakingQueue (std::shared_ptr<User> user, std::list<GameLobby> &gameLobbies, boost::asio::io_context &io_context, GameLobby::LobbyType const &lobbyType);
 void wantsToJoinGame (std::string const &objectAsString, std::shared_ptr<User> user, std::list<GameLobby> &gameLobbies, std::list<GameMachine> &gameMachines, boost::asio::io_context &io_context);
-void leaveQuickGameQueue (std::shared_ptr<User> user, std::list<GameLobby> &gameLobbies);
+void leaveMatchMakingQueue (std::shared_ptr<User> user, std::list<GameLobby> &gameLobbies);
 void loginAsGuest (std::shared_ptr<User> user);
 
 #endif /* E18680A5_3B06_4019_A849_6CDB82D14796 */

@@ -38,7 +38,7 @@ GameLobby::accountNames () const
 bool
 GameLobby::isGameLobbyAdmin (std::string const &accountName) const
 {
-  return lobbyAdminType == LobbyAdminType::FirstUserInLobbyUsers && _users.front ()->accountName.value () == accountName;
+  return lobbyAdminType == LobbyType::FirstUserInLobbyUsers && _users.front ()->accountName.value () == accountName;
 }
 
 size_t

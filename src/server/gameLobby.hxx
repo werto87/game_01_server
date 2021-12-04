@@ -16,10 +16,11 @@ struct GameLobby
   GameLobby () = default;
   GameLobby (std::string name, std::string password) : name{ std::move (name) }, password (std::move (password)) {}
 
-  enum struct LobbyAdminType
+  enum struct LobbyType
   {
     FirstUserInLobbyUsers,
-    MatchmakingSystem
+    MatchMakingSystemUnranked,
+    MatchMakingSystemRanked
   };
 
   std::string const &gameLobbyName () const;
@@ -44,7 +45,7 @@ struct GameLobby
   durak::GameOption gameOption{};
   TimerOption timerOption{};
   std::vector<std::shared_ptr<User>> readyUsers{};
-  LobbyAdminType lobbyAdminType = LobbyAdminType::FirstUserInLobbyUsers;
+  LobbyType lobbyAdminType = LobbyType::FirstUserInLobbyUsers;
   std::optional<std::string> name{};
   std::string password{};
 
