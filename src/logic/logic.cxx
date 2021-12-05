@@ -24,8 +24,11 @@
 #include <boost/serialization/vector.hpp>
 #include <boost/type_index.hpp>
 #include <boost/uuid/uuid.hpp>
+#include <cmath>
 #include <confu_json/confu_json.hxx>
 #include <crypt.h>
+#include <cstddef>
+#include <cstdlib>
 #include <durak/game.hxx>
 #include <durak/gameData.hxx>
 #include <durak/gameOption.hxx>
@@ -33,6 +36,7 @@
 #include <game_01_shared_class/serialization.hxx>
 #include <iostream>
 #include <iterator>
+#include <numeric>
 #include <optional>
 #include <pipes/filter.hpp>
 #include <pipes/pipes.hpp>
@@ -42,6 +46,7 @@
 #include <range/v3/algorithm/find_if.hpp>
 #include <range/v3/all.hpp>
 #include <range/v3/iterator/insert_iterators.hpp>
+#include <range/v3/numeric/accumulate.hpp>
 #include <range/v3/range.hpp>
 #include <range/v3/range_fwd.hpp>
 #include <range/v3/view/filter.hpp>
@@ -904,6 +909,58 @@ durakLeaveGame (std::shared_ptr<User> user, std::list<GameMachine> &gameMachines
       user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakLeaveGameError{ "Could not find a game for Account Name: " + user->accountName.value () }));
     }
 }
+auto constexpr ALLOWED_DIFFERENCE_FOR_RANKED_GAME_MATCHMAKING = size_t{ 100 };
+bool
+isInRaitingrange (size_t userRaiting, size_t lobbyAverageRaiting)
+{
+  auto const difference = userRaiting > lobbyAverageRaiting ? userRaiting - lobbyAverageRaiting : lobbyAverageRaiting - userRaiting;
+  return difference < ALLOWED_DIFFERENCE_FOR_RANKED_GAME_MATCHMAKING;
+}
+
+bool
+checkRaiting (size_t userRaiting, std::vector<std::string> accountNames)
+{
+  soci::session sql (soci::sqlite3, databaseName);
+  auto sumOfRaitingInTheLobby = ranges::accumulate (accountNames, size_t{}, [&] (auto x, std::string const &accountToCheck) {
+    if (auto userInDatabase = confu_soci::findStruct<database::Account> (sql, "accountName", accountToCheck))
+      {
+        return x + userInDatabase->raiting;
+      }
+    else
+      {
+        std::cout << "Can not find user in database but he is in ranked queue";
+        abort ();
+        return x;
+      }
+  });
+  auto averageRaitingInLobby = boost::numeric_cast<size_t> (std::rintl (boost::numeric_cast<long double> (sumOfRaitingInTheLobby) / accountNames.size ()));
+  return isInRaitingrange (userRaiting, averageRaitingInLobby);
+}
+
+bool
+matchingLobby (std::string const &accountName, GameLobby const &gameLobby, GameLobby::LobbyType const &lobbyType)
+{
+  if (gameLobby.lobbyAdminType == lobbyType && gameLobby._users.size () < gameLobby.maxUserCount ())
+    {
+      if (lobbyType == GameLobby::LobbyType::MatchMakingSystemRanked)
+        {
+          soci::session sql (soci::sqlite3, databaseName);
+          if (auto userInDatabase = confu_soci::findStruct<database::Account> (sql, "accountName", accountName))
+            {
+              return checkRaiting (userInDatabase->raiting, gameLobby.accountNames ());
+            }
+        }
+      else
+        {
+          return true;
+        }
+    }
+  else
+    {
+      return false;
+    }
+  return false;
+}
 
 void
 joinMatchMakingQueue (std::shared_ptr<User> user, std::list<GameLobby> &gameLobbies, boost::asio::io_context &io_context, GameLobby::LobbyType const &lobbyType)
@@ -915,7 +972,7 @@ joinMatchMakingQueue (std::shared_ptr<User> user, std::list<GameLobby> &gameLobb
                        })
       == gameLobbies.end ())
     {
-      if (auto gameLobbyToAddUser = ranges::find_if (gameLobbies, [lobbyType] (GameLobby const &gameLobby) { return gameLobby.lobbyAdminType == lobbyType && gameLobby._users.size () < gameLobby.maxUserCount (); }); gameLobbyToAddUser != gameLobbies.end ())
+      if (auto gameLobbyToAddUser = ranges::find_if (gameLobbies, [lobbyType, accountName = user->accountName.value ()] (GameLobby const &gameLobby) { return matchingLobby (accountName, gameLobby, lobbyType); }); gameLobbyToAddUser != gameLobbies.end ())
         {
           if (auto error = gameLobbyToAddUser->tryToAddUser (user))
             {
