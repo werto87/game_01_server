@@ -41,4 +41,5 @@ void sendAvailableMoves (durak::Game const &game, std::vector<GameUser> const &_
 
 void sendGameDataToAccountsInGame (durak::Game const &game, std::vector<GameUser> const &_gameUsers);
 std::vector<shared_class::Move> calculateAllowedMoves (durak::Game const &game, durak::PlayerRole playerRole);
+size_t averageRaiting (std::vector<std::string> const &accountNames);
 #endif /* EBD66723_6B6F_4460_A3DE_00AEB1E6D6B1 */

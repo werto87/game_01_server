@@ -89,6 +89,9 @@ struct leaveGame
 {
   std::string accountName{};
 };
+struct gameOver
+{
+};
 
 struct initTimer
 {

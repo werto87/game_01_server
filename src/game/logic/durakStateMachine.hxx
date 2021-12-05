@@ -2,23 +2,29 @@
 #define EDA48A4C_C02A_4C25_B6A5_0D0EF497AFC4
 #include "durak/game.hxx"
 #include "durak/gameData.hxx"
+#include "src/database/database.hxx"
 #include "src/game/gameUser.hxx"
 #include "src/game/logic/durakStateMachineState.hxx"
+#include "src/server/gameLobby.hxx"
 #include "src/server/user.hxx"
 #include "src/util.hxx"
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/system_timer.hpp>
 #include <boost/sml.hpp>
 #include <chrono>
+#include <confu_soci/convenienceFunctionForSoci.hxx>
+#include <cstddef>
 #include <cstdlib>
 #include <fmt/format.h>
 #include <game_01_shared_class/serialization.hxx>
 #include <iostream>
+#include <magic_enum.hpp>
 #include <optional>
 #include <queue>
 #include <range/v3/algorithm/find_if.hpp>
 #include <range/v3/algorithm/for_each.hpp>
 #include <range/v3/all.hpp>
+#include <soci/session.h>
 #include <utility>
 #include <vector>
 
@@ -57,33 +63,63 @@ struct my_logger
 
 auto const timerActive = [] (TimerOption &timerOption) { return timerOption.timerType != shared_class::TimerType::noTimer; };
 
+size_t inline calculateNewRaiting (size_t userRaiting, size_t averageRaitingInGame) { return 42; }
+
+auto const handleGameOver = [] (boost::optional<durak::Player> const &durak, std::vector<GameUser> &_gameUsers, GameLobby::LobbyType lobbyType) {
+  if (durak)
+    {
+      ranges::for_each (_gameUsers, [durak = durak->id] (auto const &gameUser) {
+        if (gameUser._user->accountName == durak) gameUser._user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverLose{}));
+        else
+          gameUser._user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverWon{}));
+      });
+    }
+  else
+    {
+      ranges::for_each (_gameUsers, [] (auto const &gameUser) { gameUser._user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverDraw{})); });
+    }
+  if (lobbyType == GameLobby::LobbyType::MatchMakingSystemRanked)
+    {
+      auto accountNamesInGame = std::vector<std::string>{};
+      ranges::transform (_gameUsers, ranges::back_inserter (accountNamesInGame), [] (GameUser const &gameUser) { return gameUser._user->accountName.value_or ("Error User is not Logged  in but still in GameLobby"); });
+      auto const averangeRaitingInGame = averageRaiting (accountNamesInGame);
+      soci::session sql (soci::sqlite3, databaseName);
+      ranges::for_each (_gameUsers, [&sql, averangeRaitingInGame] (GameUser const &gameUser) {
+        if (auto userInDatabase = confu_soci::findStruct<database::Account> (sql, "accountName", gameUser._user->accountName.value ()))
+          {
+            auto raitingChanged = shared_class::RaitingChanged{};
+            raitingChanged.oldRaiting = userInDatabase->raiting;
+            auto const newRaiting = calculateNewRaiting (userInDatabase->raiting, averangeRaitingInGame);
+            userInDatabase->raiting = newRaiting;
+            raitingChanged.newRaiting = newRaiting;
+            gameUser._user->msgQueue.push_back (objectToStringWithObjectName (raitingChanged));
+            confu_soci::upsertStruct (sql, userInDatabase.value ());
+          }
+        else
+          {
+            std::cout << "ABORT USER IN RANKED GAME AND NOT IN THE DATABASE" << std::endl;
+            abort ();
+          }
+      });
+    }
+};
+
 inline void
-removeUserFromGame (std::string const &userToRemove, durak::Game &game, std::vector<GameUser> &_gameUsers)
+removeUserFromGame (std::string const &userToRemove, durak::Game &game, std::vector<GameUser> &_gameUsers, GameLobby::LobbyType lobbyType)
 {
   if (not game.checkIfGameIsOver ())
     {
       game.removePlayer (userToRemove);
-      if (auto durak = game.durak ())
-        {
-          ranges::for_each (_gameUsers, [durak = durak->id] (auto const &gameUser) {
-            if (gameUser._user->accountName == durak) gameUser._user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverLose{}));
-            else
-              gameUser._user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverWon{}));
-          });
-        }
-      else
-        {
-          ranges::for_each (_gameUsers, [] (auto const &gameUser) { gameUser._user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverDraw{})); });
-        }
+      handleGameOver (game.durak (), _gameUsers, lobbyType);
     }
 }
 
-boost::asio::awaitable<void> inline runTimer (std::shared_ptr<boost::asio::system_timer> timer, std::string const &accountName, durak::Game &game, std::vector<GameUser> &_gameUsers, std::function<void ()> gameOverCallback)
+boost::asio::awaitable<void> inline runTimer (std::shared_ptr<boost::asio::system_timer> timer, std::string const &accountName, durak::Game &game, std::vector<GameUser> &_gameUsers, std::function<void ()> gameOverCallback, GameLobby::LobbyType lobbyType)
 {
   try
     {
       co_await timer->async_wait (boost::asio::use_awaitable);
-      removeUserFromGame (accountName, game, _gameUsers);
+      removeUserFromGame (accountName, game, _gameUsers, lobbyType);
       ranges::for_each (_gameUsers, [] (auto const &gameUser) { gameUser._timer->cancel (); });
       gameOverCallback ();
     }
@@ -213,8 +249,8 @@ auto const roundStartSendAllowedMovesAndGameData = [] (durak::Game &game, std::v
   sendAvailableMoves (game, _gameUsers, blockEverythingExceptStartAttack);
 };
 
-auto const resumeTimerHandler = [] (resumeTimer const &resumeTimerEv, durak::Game &game, std::vector<GameUser> &_gameUsers, std::function<void ()> gameOverCallback) {
-  ranges::for_each (_gameUsers, [&game, &_gameUsers, playersToResume = resumeTimerEv.playersToResume, gameOverCallback] (auto &gameUser) {
+auto const resumeTimerHandler = [] (resumeTimer const &resumeTimerEv, durak::Game &game, std::vector<GameUser> &_gameUsers, std::function<void ()> gameOverCallback, GameLobby::LobbyType lobbyType) {
+  ranges::for_each (_gameUsers, [&game, &_gameUsers, playersToResume = resumeTimerEv.playersToResume, gameOverCallback, lobbyType] (auto &gameUser) {
     if (ranges::find (playersToResume, gameUser._user->accountName.value ()) != playersToResume.end ())
       {
         if (gameUser._pausedTime)
@@ -228,7 +264,7 @@ auto const resumeTimerHandler = [] (resumeTimer const &resumeTimerEv, durak::Gam
           }
         gameUser._pausedTime = {};
         co_spawn (
-            gameUser._timer->get_executor (), [_timer = gameUser._timer, accountName = gameUser._user->accountName.value (), &game, &_gameUsers, gameOverCallback] () { return runTimer (_timer, accountName, game, _gameUsers, gameOverCallback); }, boost::asio::detached);
+            gameUser._timer->get_executor (), [_timer = gameUser._timer, accountName = gameUser._user->accountName.value (), &game, &_gameUsers, gameOverCallback, lobbyType] () { return runTimer (_timer, accountName, game, _gameUsers, gameOverCallback, lobbyType); }, boost::asio::detached);
       }
   });
 };
@@ -301,7 +337,7 @@ auto const checkData = [] (PassAttackAndAssist &passAttackAndAssist, durak::Game
     }
 };
 
-auto const checkAttackAndAssistAnswer = [] (PassAttackAndAssist &passAttackAndAssist, durak::Game &game, std::vector<GameUser> &_gameUsers, boost::sml::back::process<chill, nextRoundTimer, sendTimerEv> process_event) {
+auto const checkAttackAndAssistAnswer = [] (PassAttackAndAssist &passAttackAndAssist, durak::Game &game, std::vector<GameUser> &_gameUsers, boost::sml::back::process<chill, nextRoundTimer, sendTimerEv> process_event, GameLobby::LobbyType lobbyType) {
   if (auto attackingPlayer = game.getAttackingPlayer (); not attackingPlayer || attackingPlayer->getCards ().empty ())
     {
       passAttackAndAssist.attack = true;
@@ -315,18 +351,7 @@ auto const checkAttackAndAssistAnswer = [] (PassAttackAndAssist &passAttackAndAs
       game.nextRound (true);
       if (game.checkIfGameIsOver ())
         {
-          if (auto durak = game.durak ())
-            {
-              ranges::for_each (_gameUsers, [durak = durak->id] (auto const &gameUser) {
-                if (gameUser._user->accountName == durak) gameUser._user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverLose{}));
-                else
-                  gameUser._user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverWon{}));
-              });
-            }
-          else
-            {
-              ranges::for_each (_gameUsers, [] (auto const &gameUser) { gameUser._user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverDraw{})); });
-            }
+          handleGameOver (game.durak (), _gameUsers, lobbyType);
         }
       process_event (chill{});
     }
@@ -353,8 +378,8 @@ auto const startAskDef = [] (durak::Game &game, std::vector<GameUser> &_gameUser
     }
 };
 
-auto const userLeftGame = [] (leaveGame const &leaveGameEv, durak::Game &game, std::vector<GameUser> &_gameUsers) {
-  removeUserFromGame (leaveGameEv.accountName, game, _gameUsers);
+auto const userLeftGame = [] (leaveGame const &leaveGameEv, durak::Game &game, std::vector<GameUser> &_gameUsers, GameLobby::LobbyType lobbyType) {
+  removeUserFromGame (leaveGameEv.accountName, game, _gameUsers, lobbyType);
   ranges::for_each (_gameUsers, [] (auto const &gameUser) { gameUser._timer->cancel (); });
   if (auto gameUserItr = ranges::find_if (_gameUsers, [accountName = leaveGameEv.accountName] (auto const &gameUser) { return gameUser._user->accountName == accountName; }); gameUserItr != _gameUsers.end ())
     {
@@ -362,7 +387,7 @@ auto const userLeftGame = [] (leaveGame const &leaveGameEv, durak::Game &game, s
     }
 };
 
-auto const startAskAttackAndAssist = [] (PassAttackAndAssist &passAttackAndAssist, durak::Game &game, std::vector<GameUser> &_gameUsers, boost::sml::back::process<pauseTimer, nextRoundTimer, resumeTimer, sendTimerEv> process_event) {
+auto const startAskAttackAndAssist = [] (PassAttackAndAssist &passAttackAndAssist, durak::Game &game, std::vector<GameUser> &_gameUsers, boost::sml::back::process<pauseTimer, nextRoundTimer, resumeTimer, sendTimerEv> process_event, GameLobby::LobbyType lobbyType) {
   if (auto defendingPlayer = game.getDefendingPlayer ())
     {
       process_event (pauseTimer{ { defendingPlayer->id } });
@@ -399,18 +424,7 @@ auto const startAskAttackAndAssist = [] (PassAttackAndAssist &passAttackAndAssis
       game.nextRound (true);
       if (game.checkIfGameIsOver ())
         {
-          if (auto durak = game.durak ())
-            {
-              ranges::for_each (_gameUsers, [durak = durak->id] (auto const &gameUser) {
-                if (gameUser._user->accountName == durak) gameUser._user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverLose{}));
-                else
-                  gameUser._user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverWon{}));
-              });
-            }
-          else
-            {
-              ranges::for_each (_gameUsers, [] (auto const &gameUser) { gameUser._user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverDraw{})); });
-            }
+          handleGameOver (game.durak (), _gameUsers, lobbyType);
         }
     }
   else
@@ -463,7 +477,7 @@ auto const doPass = [] (std::string const &playerName, PassAttackAndAssist &pass
 auto const setAttackPass = [] (attackPass const &attackPassEv, PassAttackAndAssist &passAttackAndAssist, durak::Game &game, std::vector<GameUser> &_gameUsers, boost::sml::back::process<pauseTimer, sendTimerEv> process_event) { doPass (attackPassEv.playerName, passAttackAndAssist, game, _gameUsers, process_event); };
 auto const setAssistPass = [] (assistPass const &assistPassEv, PassAttackAndAssist &passAttackAndAssist, durak::Game &game, std::vector<GameUser> &_gameUsers, boost::sml::back::process<pauseTimer, sendTimerEv> process_event) { doPass (assistPassEv.playerName, passAttackAndAssist, game, _gameUsers, process_event); };
 
-auto const handleDefendSuccess = [] (defendAnswerNo const &defendAnswerNoEv, durak::Game &game, std::vector<GameUser> &_gameUsers) {
+auto const handleDefendSuccess = [] (defendAnswerNo const &defendAnswerNoEv, durak::Game &game, std::vector<GameUser> &_gameUsers, GameLobby::LobbyType lobbyType) {
   if (auto gameUserItr = ranges::find_if (_gameUsers, [accountName = defendAnswerNoEv.playerName] (auto const &gameUser) { return gameUser._user->accountName.value () == accountName; }); gameUserItr != _gameUsers.end ())
     {
       auto &sendingUserMsgQueue = gameUserItr->_user->msgQueue;
@@ -472,18 +486,7 @@ auto const handleDefendSuccess = [] (defendAnswerNo const &defendAnswerNoEv, dur
           game.nextRound (false);
           if (game.checkIfGameIsOver ())
             {
-              if (auto durak = game.durak ())
-                {
-                  ranges::for_each (_gameUsers, [durak = durak->id] (auto const &gameUser) {
-                    if (gameUser._user->accountName == durak) gameUser._user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverLose{}));
-                    else
-                      gameUser._user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverWon{}));
-                  });
-                }
-              else
-                {
-                  ranges::for_each (_gameUsers, [] (auto const &gameUser) { gameUser._user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverDraw{})); });
-                }
+              handleGameOver (game.durak (), _gameUsers, lobbyType);
             }
           else
             {

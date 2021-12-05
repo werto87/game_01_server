@@ -1,4 +1,5 @@
 #include "src/util.hxx"
+#include "src/database/database.hxx"
 #include <durak/game.hxx>
 #include <durak/gameData.hxx>
 #include <game_01_shared_class/serialization.hxx>
@@ -81,4 +82,23 @@ sendGameDataToAccountsInGame (durak::Game const &game, std::vector<GameUser> con
   auto gameData = game.getGameData ();
   ranges::for_each (gameData.players, [] (auto &player) { ranges::sort (player.cards, [] (auto const &card1, auto const &card2) { return card1.value () < card2.value (); }); });
   ranges::for_each (_gameUsers, [&gameData] (auto const &gameUser) { gameUser._user->msgQueue.push_back (objectToStringWithObjectName (filterGameDataByAccountName (gameData, gameUser._user->accountName.value ()))); });
+}
+
+size_t
+averageRaiting (std::vector<std::string> const &accountNames)
+{
+  soci::session sql (soci::sqlite3, databaseName);
+  auto sumOfRaitingInTheLobby = ranges::accumulate (accountNames, size_t{}, [&] (auto x, std::string const &accountToCheck) {
+    if (auto userInDatabase = confu_soci::findStruct<database::Account> (sql, "accountName", accountToCheck))
+      {
+        return x + userInDatabase->raiting;
+      }
+    else
+      {
+        std::cout << "Can not find user in database but he is in ranked queue";
+        abort ();
+        return x;
+      }
+  });
+  return boost::numeric_cast<size_t> (std::rintl (boost::numeric_cast<long double> (sumOfRaitingInTheLobby) / accountNames.size ()));
 }

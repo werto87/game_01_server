@@ -468,18 +468,21 @@ createGame (std::shared_ptr<User> user, std::list<GameLobby> &gameLobbies, std::
                   auto names = std::vector<std::string>{};
                   ranges::transform (gameLobbyWithUser->_users, ranges::back_inserter (names), [] (auto const &tempUser) { return tempUser->accountName.value (); });
                   auto game = durak::Game{ std::move (names), gameLobbyWithUser->gameOption };
-                  gameMachines.emplace_back (game, gameLobbyWithUser->_users, io_context, gameLobbyWithUser->timerOption, [accountName = user->accountName, &gameMachines] () {
-                    if (auto gameWithUser = ranges::find_if (gameMachines,
-                                                             [accountName] (auto const &gameMachine) {
-                                                               auto accountNames = std::vector<std::string>{};
-                                                               ranges::transform (gameMachine.getGameUsers (), ranges::back_inserter (accountNames), [] (auto const &gameUser) { return gameUser._user->accountName.value (); });
-                                                               return ranges::find_if (accountNames, [&accountName] (auto const &nameToCheck) { return nameToCheck == accountName; }) != accountNames.end ();
-                                                             });
-                        gameWithUser != gameMachines.end ())
-                      {
-                        gameMachines.erase (gameWithUser);
-                      }
-                  });
+                  gameMachines.emplace_back (
+                      game, gameLobbyWithUser->_users, io_context, gameLobbyWithUser->timerOption,
+                      [accountName = user->accountName, &gameMachines] () {
+                        if (auto gameWithUser = ranges::find_if (gameMachines,
+                                                                 [accountName] (auto const &gameMachine) {
+                                                                   auto accountNames = std::vector<std::string>{};
+                                                                   ranges::transform (gameMachine.getGameUsers (), ranges::back_inserter (accountNames), [] (auto const &gameUser) { return gameUser._user->accountName.value (); });
+                                                                   return ranges::find_if (accountNames, [&accountName] (auto const &nameToCheck) { return nameToCheck == accountName; }) != accountNames.end ();
+                                                                 });
+                            gameWithUser != gameMachines.end ())
+                          {
+                            gameMachines.erase (gameWithUser);
+                          }
+                      },
+                      gameLobbyWithUser->lobbyAdminType);
                   gameLobbies.erase (gameLobbyWithUser);
                 }
             }
@@ -917,24 +920,12 @@ isInRaitingrange (size_t userRaiting, size_t lobbyAverageRaiting)
   return difference < ALLOWED_DIFFERENCE_FOR_RANKED_GAME_MATCHMAKING;
 }
 
+
+
 bool
-checkRaiting (size_t userRaiting, std::vector<std::string> accountNames)
+checkRaiting (size_t userRaiting, std::vector<std::string> const &accountNames)
 {
-  soci::session sql (soci::sqlite3, databaseName);
-  auto sumOfRaitingInTheLobby = ranges::accumulate (accountNames, size_t{}, [&] (auto x, std::string const &accountToCheck) {
-    if (auto userInDatabase = confu_soci::findStruct<database::Account> (sql, "accountName", accountToCheck))
-      {
-        return x + userInDatabase->raiting;
-      }
-    else
-      {
-        std::cout << "Can not find user in database but he is in ranked queue";
-        abort ();
-        return x;
-      }
-  });
-  auto averageRaitingInLobby = boost::numeric_cast<size_t> (std::rintl (boost::numeric_cast<long double> (sumOfRaitingInTheLobby) / accountNames.size ()));
-  return isInRaitingrange (userRaiting, averageRaitingInLobby);
+  return isInRaitingrange (userRaiting, averageRaiting (accountNames));
 }
 
 bool
@@ -1051,18 +1042,21 @@ wantsToJoinGame (std::string const &objectAsString, std::shared_ptr<User> user, 
                   auto names = std::vector<std::string>{};
                   ranges::transform (gameLobby->_users, ranges::back_inserter (names), [] (auto const &tempUser) { return tempUser->accountName.value (); });
                   auto game = durak::Game{ std::move (names), gameLobby->gameOption };
-                  gameMachines.emplace_back (game, gameLobby->_users, io_context, gameLobby->timerOption, [accountName = user->accountName, &gameMachines] () {
-                    if (auto gameWithUser = ranges::find_if (gameMachines,
-                                                             [accountName] (auto const &gameMachine) {
-                                                               auto accountNames = std::vector<std::string>{};
-                                                               ranges::transform (gameMachine.getGameUsers (), ranges::back_inserter (accountNames), [] (auto const &gameUser) { return gameUser._user->accountName.value (); });
-                                                               return ranges::find_if (accountNames, [&accountName] (auto const &nameToCheck) { return nameToCheck == accountName; }) != accountNames.end ();
-                                                             });
-                        gameWithUser != gameMachines.end ())
-                      {
-                        gameMachines.erase (gameWithUser);
-                      }
-                  });
+                  gameMachines.emplace_back (
+                      game, gameLobby->_users, io_context, gameLobby->timerOption,
+                      [accountName = user->accountName, &gameMachines] () {
+                        if (auto gameWithUser = ranges::find_if (gameMachines,
+                                                                 [accountName] (auto const &gameMachine) {
+                                                                   auto accountNames = std::vector<std::string>{};
+                                                                   ranges::transform (gameMachine.getGameUsers (), ranges::back_inserter (accountNames), [] (auto const &gameUser) { return gameUser._user->accountName.value (); });
+                                                                   return ranges::find_if (accountNames, [&accountName] (auto const &nameToCheck) { return nameToCheck == accountName; }) != accountNames.end ();
+                                                                 });
+                            gameWithUser != gameMachines.end ())
+                          {
+                            gameMachines.erase (gameWithUser);
+                          }
+                      },
+                      gameLobby->lobbyAdminType);
                   gameLobbies.erase (gameLobby);
                 }
             }
