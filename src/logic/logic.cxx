@@ -1,6 +1,7 @@
 #include "src/logic/logic.hxx"
 #include "src/database/database.hxx"
 #include "src/game/logic/durakStateMachineState.hxx"
+#include "src/game/logic/gameMachine.hxx"
 #include "src/pw_hash/passwordHash.hxx"
 #include "src/server/gameLobby.hxx"
 #include "src/util.hxx"
@@ -90,7 +91,7 @@ handleMessage (std::string const &msg, boost::asio::io_context &io_context, boos
       auto const &objectAsString = splitMesssage.at (1);
       if (typeToSearch == "CreateAccount")
         {
-          co_await createAccountAndLogin (objectAsString, io_context, user, pool);
+          co_await createAccountAndLogin (objectAsString, io_context, user, pool, gameLobbies, gameMachines);
           user->ignoreCreateAccount = false;
           user->ignoreLogin = false;
         }
@@ -106,15 +107,15 @@ handleMessage (std::string const &msg, boost::asio::io_context &io_context, boos
         }
       else if (typeToSearch == "JoinChannel")
         {
-          joinChannel (objectAsString, *user);
+          joinChannel (objectAsString, user);
         }
       else if (user->accountName && typeToSearch == "LeaveChannel")
         {
-          leaveChannel (objectAsString, *user);
+          leaveChannel (objectAsString, user);
         }
       else if (typeToSearch == "LogoutAccount")
         {
-          logoutAccount (*user);
+          logoutAccount (user, gameLobbies, gameMachines);
         }
       else if (typeToSearch == "CreateGameLobby")
         {
@@ -229,8 +230,12 @@ handleMessage (std::string const &msg, boost::asio::io_context &io_context, boos
 }
 
 boost::asio::awaitable<void>
-createAccountAndLogin (std::string objectAsString, boost::asio::io_context &io_context, std::shared_ptr<User> user, boost::asio::thread_pool &pool)
+createAccountAndLogin (std::string objectAsString, boost::asio::io_context &io_context, std::shared_ptr<User> user, boost::asio::thread_pool &pool, std::list<GameLobby> &gameLobbies, std::list<GameMachine> &gameMachines)
 {
+  if (user->accountName)
+    {
+      logoutAccount (user, gameLobbies, gameMachines);
+    }
   auto createAccountObject = stringToObject<shared_class::CreateAccount> (objectAsString);
   soci::session sql (soci::sqlite3, databaseName);
   if (confu_soci::findStruct<database::Account> (sql, "accountName", createAccountObject.accountName))
@@ -266,6 +271,10 @@ createAccountAndLogin (std::string objectAsString, boost::asio::io_context &io_c
 boost::asio::awaitable<void>
 loginAccount (std::string objectAsString, boost::asio::io_context &io_context, std::list<std::shared_ptr<User>> &users, std::shared_ptr<User> user, boost::asio::thread_pool &pool, std::list<GameLobby> &gameLobbies, std::list<GameMachine> &gameMachines)
 {
+  if (user->accountName)
+    {
+      logoutAccount (user, gameLobbies, gameMachines);
+    }
   auto loginAccountObject = stringToObject<shared_class::LoginAccount> (objectAsString);
   soci::session sql (soci::sqlite3, databaseName);
   if (auto account = confu_soci::findStruct<database::Account> (sql, "accountName", loginAccountObject.accountName))
@@ -342,17 +351,6 @@ loginAccount (std::string objectAsString, boost::asio::io_context &io_context, s
 }
 
 void
-logoutAccount (User &user)
-{
-  user.accountName = {};
-  user.msgQueue.clear ();
-  user.communicationChannels.clear ();
-  user.ignoreLogin = false;
-  user.ignoreCreateAccount = false;
-  user.msgQueue.push_back (objectToStringWithObjectName (shared_class::LogoutAccountSuccess{}));
-}
-
-void
 broadCastMessage (std::string const &objectAsString, std::list<std::shared_ptr<User>> &users, User &sendingUser)
 {
   auto broadCastMessageObject = stringToObject<shared_class::BroadCastMessage> (objectAsString);
@@ -374,42 +372,42 @@ broadCastMessage (std::string const &objectAsString, std::list<std::shared_ptr<U
 }
 
 void
-joinChannel (std::string const &objectAsString, User &user)
+joinChannel (std::string const &objectAsString, std::shared_ptr<User> user)
 {
   auto joinChannelObject = stringToObject<shared_class::JoinChannel> (objectAsString);
-  if (user.accountName)
+  if (user->accountName)
     {
-      user.communicationChannels.insert (joinChannelObject.channel);
-      user.msgQueue.push_back (objectToStringWithObjectName (shared_class::JoinChannelSuccess{ joinChannelObject.channel }));
+      user->communicationChannels.insert (joinChannelObject.channel);
+      user->msgQueue.push_back (objectToStringWithObjectName (shared_class::JoinChannelSuccess{ joinChannelObject.channel }));
       return;
     }
   else
     {
-      user.msgQueue.push_back (objectToStringWithObjectName (shared_class::JoinChannelError{ joinChannelObject.channel, { "user not logged in" } }));
+      user->msgQueue.push_back (objectToStringWithObjectName (shared_class::JoinChannelError{ joinChannelObject.channel, { "user not logged in" } }));
       return;
     }
 }
 
 void
-leaveChannel (std::string const &objectAsString, User &user)
+leaveChannel (std::string const &objectAsString, std::shared_ptr<User> user)
 {
   auto leaveChannelObject = stringToObject<shared_class::LeaveChannel> (objectAsString);
-  if (user.accountName)
+  if (user->accountName)
     {
-      if (user.communicationChannels.erase (leaveChannelObject.channel))
+      if (user->communicationChannels.erase (leaveChannelObject.channel))
         {
-          user.msgQueue.push_back (objectToStringWithObjectName (shared_class::LeaveChannelSuccess{ leaveChannelObject.channel }));
+          user->msgQueue.push_back (objectToStringWithObjectName (shared_class::LeaveChannelSuccess{ leaveChannelObject.channel }));
           return;
         }
       else
         {
-          user.msgQueue.push_back (objectToStringWithObjectName (shared_class::LeaveChannelError{ leaveChannelObject.channel, { "channel not found" } }));
+          user->msgQueue.push_back (objectToStringWithObjectName (shared_class::LeaveChannelError{ leaveChannelObject.channel, { "channel not found" } }));
           return;
         }
     }
   else
     {
-      user.msgQueue.push_back (objectToStringWithObjectName (shared_class::LeaveChannelError{ leaveChannelObject.channel, { "user not logged in" } }));
+      user->msgQueue.push_back (objectToStringWithObjectName (shared_class::LeaveChannelError{ leaveChannelObject.channel, { "user not logged in" } }));
       return;
     }
 }
@@ -1065,4 +1063,46 @@ loginAsGuest (std::shared_ptr<User> user)
       user->accountName = to_string (boost::uuids::random_generator () ());
       user->msgQueue.push_back (objectToStringWithObjectName (shared_class::LoginAsGuestSuccess{ user->accountName.value () }));
     }
+}
+
+void
+removeUserFromLobbyAndGame (std::shared_ptr<User> user, std::list<GameLobby> &gameLobbies, std::list<GameMachine> &gameMachines)
+{
+  auto const findLobby = [userAccountName = user->accountName] (GameLobby const &gameLobby) {
+    auto const &accountNamesToCheck = gameLobby.accountNames ();
+    return ranges::find_if (accountNamesToCheck, [userAccountName] (std::string const &accountNameToCheck) { return userAccountName == accountNameToCheck; }) != accountNamesToCheck.end ();
+  };
+  auto gameLobbyWithUser = ranges::find_if (gameLobbies, findLobby);
+  while (gameLobbyWithUser != gameLobbies.end ())
+    {
+      gameLobbyWithUser->removeUser (user);
+      if (gameLobbyWithUser->_users.empty ())
+        {
+          gameLobbies.erase (gameLobbyWithUser);
+        }
+      gameLobbyWithUser = ranges::find_if (gameLobbies, findLobby);
+    }
+  auto const findGame = [userAccountName = user->accountName] (GameMachine const &gameMachine) {
+    auto const &gameUsers = gameMachine.getGameUsers ();
+    return ranges::find_if (gameUsers, [userAccountName] (GameUser const &gameUser) { return userAccountName == gameUser._user->accountName; }) != gameUsers.end ();
+  };
+  auto gameWithUser = ranges::find_if (gameMachines, findGame);
+  while (gameWithUser != gameMachines.end ())
+    {
+      gameWithUser->durakStateMachine.process_event (leaveGame{ user->accountName.value () });
+      gameMachines.erase (gameWithUser);
+      gameWithUser = ranges::find_if (gameMachines, findGame);
+    }
+}
+
+void
+logoutAccount (std::shared_ptr<User> user, std::list<GameLobby> &gameLobbies, std::list<GameMachine> &gameMachines)
+{
+  removeUserFromLobbyAndGame (user, gameLobbies, gameMachines);
+  user->accountName = {};
+  user->msgQueue.clear ();
+  user->communicationChannels.clear ();
+  user->ignoreLogin = false;
+  user->ignoreCreateAccount = false;
+  user->msgQueue.push_back (objectToStringWithObjectName (shared_class::LogoutAccountSuccess{}));
 }

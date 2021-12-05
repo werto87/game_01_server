@@ -85,10 +85,20 @@ Server::readFromClient (std::list<std::shared_ptr<User>>::iterator user, SSLWebs
     }
 }
 
+bool
+isRegistered (std::string const &accountName)
+{
+  soci::session sql (soci::sqlite3, databaseName);
+  return confu_soci::findStruct<database::Account> (sql, "accountName", accountName).has_value ();
+}
+
 void
 Server::removeUser (std::list<std::shared_ptr<User>>::iterator user)
 {
-  // user will still be in create game lobby or game so we reset everything expect user->accountName to enable relog to gamelobby or game
+  if (user->get ()->accountName && not isRegistered (user->get ()->accountName.value ()))
+    {
+      removeUserFromLobbyAndGame (*user, gameLobbies, games);
+    }
   user->get ()->communicationChannels.clear ();
   user->get ()->ignoreLogin = false;
   user->get ()->ignoreCreateAccount = false;
