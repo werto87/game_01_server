@@ -1,6 +1,7 @@
 #include "src/game/logic/gameMachine.hxx"
 #include "durak/gameData.hxx"
 #include "src/game/logic/durakStateMachineState.hxx"
+#include "src/server/gameLobby.hxx"
 #include "test/util.hxx"
 #include <catch2/catch.hpp>
 #include <chrono>
@@ -27,7 +28,7 @@ TEST_CASE ("player starts attack cards on table", "[game]")
   auto &player1MsgQueue = users.at (0)->msgQueue;
   auto &player2MsgQueue = users.at (1)->msgQueue;
   boost::asio::io_context io_context{};
-  auto gameMachine = GameMachine{ durak::Game{ { "Player1", "Player2" }, testCardDeckMax36 () }, users, io_context, {}, [] () {} };
+  auto gameMachine = GameMachine{ durak::Game{ { "Player1", "Player2" }, testCardDeckMax36 () }, users, io_context, {}, [] () {}, GameLobby::LobbyType::FirstUserInLobbyUsers };
   REQUIRE (gameMachine.getGame ().getPlayers ().size () == 2);
   REQUIRE (gameMachine.getGame ().getPlayers ().at (0).id == "Player1");
   auto attackingPlayer = gameMachine.getGame ().getAttackingPlayer ();
@@ -46,7 +47,7 @@ TEST_CASE ("player beats card and round ends", "[game]")
   auto &player1MsgQueue = users.at (0)->msgQueue;
   auto &player2MsgQueue = users.at (1)->msgQueue;
   boost::asio::io_context io_context{};
-  auto gameMachine = GameMachine{ durak::Game{ { "Player1", "Player2" }, testCardDeckMax36 () }, users, io_context, {}, [] () {} };
+  auto gameMachine = GameMachine{ durak::Game{ { "Player1", "Player2" }, testCardDeckMax36 () }, users, io_context, {}, [] () {}, GameLobby::LobbyType::FirstUserInLobbyUsers };
   REQUIRE (gameMachine.getGame ().getPlayers ().size () == 2);
   REQUIRE (gameMachine.getGame ().getPlayers ().at (0).id == "Player1");
   auto &attackingPlayer = gameMachine.getGame ().getAttackingPlayer ().value ();
@@ -78,7 +79,7 @@ TEST_CASE ("player beats card but takes them in the end and attacking player add
   users.emplace_back (std::make_shared<User> (User{}))->accountName = "Player1";
   users.emplace_back (std::make_shared<User> (User{}))->accountName = "Player2";
   boost::asio::io_context io_context{};
-  auto gameMachine = GameMachine{ durak::Game{ { "Player1", "Player2" }, testCardDeckMax36 (10) }, users, io_context, {}, [] () {} };
+  auto gameMachine = GameMachine{ durak::Game{ { "Player1", "Player2" }, testCardDeckMax36 (10) }, users, io_context, {}, [] () {}, GameLobby::LobbyType::FirstUserInLobbyUsers };
   REQUIRE (gameMachine.getGame ().getPlayers ().size () == 2);
   REQUIRE (gameMachine.getGame ().getPlayers ().at (0).id == "Player1");
   auto &attackingPlayer = gameMachine.getGame ().getAttackingPlayer ().value ();
@@ -106,7 +107,7 @@ TEST_CASE ("attacking player does not add cards", "[game]")
   auto &player1MsgQueue = users.at (0)->msgQueue;
   auto &player2MsgQueue = users.at (1)->msgQueue;
   boost::asio::io_context io_context{};
-  auto gameMachine = GameMachine{ durak::Game{ { "Player1", "Player2" }, testCardDeckMax36 (10) }, users, io_context, {}, [] () {} };
+  auto gameMachine = GameMachine{ durak::Game{ { "Player1", "Player2" }, testCardDeckMax36 (10) }, users, io_context, {}, [] () {}, GameLobby::LobbyType::FirstUserInLobbyUsers };
   REQUIRE (gameMachine.getGame ().getPlayers ().size () == 2);
   REQUIRE (gameMachine.getGame ().getPlayers ().at (0).id == "Player1");
   auto &attackingPlayer = gameMachine.getGame ().getAttackingPlayer ().value ();
@@ -133,7 +134,7 @@ TEST_CASE ("3 player attack assist def takes cards", "[game]")
   users.emplace_back (std::make_shared<User> (User{}))->accountName = "Player2";
   users.emplace_back (std::make_shared<User> (User{}))->accountName = "Player3";
   boost::asio::io_context io_context{};
-  auto gameMachine = GameMachine{ durak::Game{ { "Player1", "Player2", "Player3" }, testCardDeckMax36 () }, users, io_context, {}, [] () {} };
+  auto gameMachine = GameMachine{ durak::Game{ { "Player1", "Player2", "Player3" }, testCardDeckMax36 () }, users, io_context, {}, [] () {}, GameLobby::LobbyType::FirstUserInLobbyUsers };
   REQUIRE (gameMachine.getGame ().getPlayers ().size () == 3);
   REQUIRE (gameMachine.getGame ().getPlayers ().at (0).id == "Player1");
   auto &attackingPlayer = gameMachine.getGame ().getAttackingPlayer ().value ();
@@ -221,7 +222,7 @@ TEST_CASE ("3 player attack assist def success", "[game]")
   users.emplace_back (std::make_shared<User> (User{}))->accountName = "Player2";
   users.emplace_back (std::make_shared<User> (User{}))->accountName = "Player3";
   boost::asio::io_context io_context{};
-  auto gameMachine = GameMachine{ durak::Game{ { "Player1", "Player2", "Player3" }, testCardDeckMax36 () }, users, io_context, {}, [] () {} };
+  auto gameMachine = GameMachine{ durak::Game{ { "Player1", "Player2", "Player3" }, testCardDeckMax36 () }, users, io_context, {}, [] () {}, GameLobby::LobbyType::FirstUserInLobbyUsers };
   REQUIRE (gameMachine.getGame ().getPlayers ().size () == 3);
   REQUIRE (gameMachine.getGame ().getPlayers ().at (0).id == "Player1");
   auto &attackingPlayer = gameMachine.getGame ().getAttackingPlayer ().value ();
@@ -294,7 +295,7 @@ TEST_CASE ("3 player attack assist def success with timer", "[game]")
   users.emplace_back (std::make_shared<User> (User{}))->accountName = "Player2";
   users.emplace_back (std::make_shared<User> (User{}))->accountName = "Player3";
   boost::asio::io_context io_context{};
-  auto gameMachine = GameMachine{ durak::Game{ { "Player1", "Player2", "Player3" }, testCardDeckMax36 () }, users, io_context, TimerOption{ .timerType = shared_class::TimerType::resetTimeOnNewRound, .timeAtStart = std::chrono::seconds{ 1 }, .timeForEachRound = std::chrono::seconds{ 1 } }, [] () {} };
+  auto gameMachine = GameMachine{ durak::Game{ { "Player1", "Player2", "Player3" }, testCardDeckMax36 () }, users, io_context, TimerOption{ .timerType = shared_class::TimerType::resetTimeOnNewRound, .timeAtStart = std::chrono::seconds{ 1 }, .timeForEachRound = std::chrono::seconds{ 1 } }, [] () {}, GameLobby::LobbyType::FirstUserInLobbyUsers };
   REQUIRE (gameMachine.getGame ().getPlayers ().size () == 3);
   REQUIRE (gameMachine.getGame ().getPlayers ().at (0).id == "Player1");
   auto &attackingPlayer = gameMachine.getGame ().getAttackingPlayer ().value ();
@@ -390,7 +391,7 @@ TEST_CASE ("defend takes cards", "[game]")
   users.emplace_back (std::make_shared<User> (User{}))->accountName = "Player1";
   users.emplace_back (std::make_shared<User> (User{}))->accountName = "Player2";
   boost::asio::io_context io_context{};
-  auto gameMachine = GameMachine{ durak::Game{ { "Player1", "Player2" }, testCardDeckMax36 () }, users, io_context, {}, [] () {} };
+  auto gameMachine = GameMachine{ durak::Game{ { "Player1", "Player2" }, testCardDeckMax36 () }, users, io_context, {}, [] () {}, GameLobby::LobbyType::FirstUserInLobbyUsers };
   REQUIRE (gameMachine.getGame ().getPlayers ().size () == 2);
   REQUIRE (gameMachine.getGame ().getPlayers ().at (0).id == "Player1");
   auto &attackingPlayer = gameMachine.getGame ().getAttackingPlayer ().value ();
@@ -409,7 +410,7 @@ TEST_CASE ("game ends", "[game]")
   users.emplace_back (std::make_shared<User> (User{}))->accountName = "Player1";
   users.emplace_back (std::make_shared<User> (User{}))->accountName = "Player2";
   boost::asio::io_context io_context{};
-  auto gameMachine = GameMachine{ durak::Game{ { "Player1", "Player2" }, testCardDeckMax36 (7) }, users, io_context, {}, [] () {} };
+  auto gameMachine = GameMachine{ durak::Game{ { "Player1", "Player2" }, testCardDeckMax36 (7) }, users, io_context, {}, [] () {}, GameLobby::LobbyType::FirstUserInLobbyUsers };
   REQUIRE (gameMachine.getGame ().getPlayers ().size () == 2);
   REQUIRE (gameMachine.getGame ().getPlayers ().at (0).id == "Player1");
   auto &attackingPlayer = gameMachine.getGame ().getAttackingPlayer ().value ();
@@ -442,7 +443,7 @@ TEST_CASE ("game ends draw", "[game]")
   users.emplace_back (std::make_shared<User> (User{}))->accountName = "Player1";
   users.emplace_back (std::make_shared<User> (User{}))->accountName = "Player2";
   boost::asio::io_context io_context{};
-  auto gameMachine = GameMachine{ durak::Game{ { "Player1", "Player2" }, testCardDeckMax36 (8) }, users, io_context, {}, [] () {} };
+  auto gameMachine = GameMachine{ durak::Game{ { "Player1", "Player2" }, testCardDeckMax36 (8) }, users, io_context, {}, [] () {}, GameLobby::LobbyType::FirstUserInLobbyUsers };
   REQUIRE (gameMachine.getGame ().getPlayers ().size () == 2);
   REQUIRE (gameMachine.getGame ().getPlayers ().at (0).id == "Player1");
   auto &attackingPlayer = gameMachine.getGame ().getAttackingPlayer ().value ();

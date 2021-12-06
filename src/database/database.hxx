@@ -6,7 +6,7 @@
 #include <boost/optional.hpp>
 #include <filesystem>
 
-BOOST_FUSION_DEFINE_STRUCT ((database), Account, (std::string, accountName) (std::string, password) (size_t, raiting))
+BOOST_FUSION_DEFINE_STRUCT ((database), Account, (std::string, accountName) (std::string, password) (size_t, rating))
 
 namespace database
 {

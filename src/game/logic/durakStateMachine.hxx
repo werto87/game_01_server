@@ -5,13 +5,16 @@
 #include "src/database/database.hxx"
 #include "src/game/gameUser.hxx"
 #include "src/game/logic/durakStateMachineState.hxx"
+#include "src/game/logic/rating.hxx"
 #include "src/server/gameLobby.hxx"
 #include "src/server/user.hxx"
 #include "src/util.hxx"
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/system_timer.hpp>
+#include <boost/numeric/conversion/cast.hpp>
 #include <boost/sml.hpp>
 #include <chrono>
+#include <cmath>
 #include <confu_soci/convenienceFunctionForSoci.hxx>
 #include <cstddef>
 #include <cstdlib>
@@ -20,10 +23,13 @@
 #include <iostream>
 #include <magic_enum.hpp>
 #include <optional>
+#include <pipes/push_back.hpp>
+#include <pipes/unzip.hpp>
 #include <queue>
 #include <range/v3/algorithm/find_if.hpp>
 #include <range/v3/algorithm/for_each.hpp>
 #include <range/v3/all.hpp>
+#include <range/v3/numeric/accumulate.hpp>
 #include <soci/session.h>
 #include <utility>
 #include <vector>
@@ -63,7 +69,39 @@ struct my_logger
 
 auto const timerActive = [] (TimerOption &timerOption) { return timerOption.timerType != shared_class::TimerType::noTimer; };
 
-size_t inline calculateNewRaiting (size_t userRaiting, size_t averageRaitingInGame) { return 42; }
+auto constexpr SCORE_WON = 1;
+auto constexpr RATING_CHANGE_FACTOR = 20;
+void inline updateRating (std::vector<GameUser> &_gameUsers, std::vector<database::Account> &losers, std::vector<database::Account> &winners)
+{
+  auto losersRatings = std::vector<size_t>{};
+  losers >>= pipes::transform ([] (database::Account const &account) { return account.rating; }) >>= pipes::push_back (losersRatings);
+  auto const averageRatingLosers = averageRating (losersRatings);
+  auto winnersRatings = std::vector<size_t>{};
+  winners >>= pipes::transform ([] (database::Account const &account) { return account.rating; }) >>= pipes::push_back (winnersRatings);
+  auto const averageRatingWinners = averageRating (winnersRatings);
+  auto totalRatingWon = ratingChange (averageRatingWinners, averageRatingLosers, SCORE_WON, RATING_CHANGE_FACTOR);
+  auto sql = soci::session (soci::sqlite3, databaseName);
+  for (auto &winner : winners)
+    {
+      auto const oldRating = winner.rating;
+      winner.rating = winner.rating + ratingShareWinningTeam (winner.rating, winnersRatings, totalRatingWon);
+      confu_soci::upsertStruct (sql, winner);
+      if (auto gameUser = ranges::find_if (_gameUsers, [accountName = winner.accountName] (GameUser const &gameUser) { return gameUser._user->accountName.value () == accountName; }); gameUser != _gameUsers.end ())
+        {
+          gameUser->_user->msgQueue.push_back (objectToStringWithObjectName (shared_class::RatingChanged{ oldRating, winner.rating }));
+        }
+    }
+  for (auto &loser : losers)
+    {
+      auto const oldRating = loser.rating;
+      loser.rating = loser.rating - ratingShareLosingTeam (loser.rating, losersRatings, totalRatingWon);
+      confu_soci::upsertStruct (sql, loser);
+      if (auto gameUser = ranges::find_if (_gameUsers, [accountName = loser.accountName] (GameUser const &gameUser) { return gameUser._user->accountName.value () == accountName; }); gameUser != _gameUsers.end ())
+        {
+          gameUser->_user->msgQueue.push_back (objectToStringWithObjectName (shared_class::RatingChanged{ oldRating, loser.rating }));
+        }
+    }
+}
 
 auto const handleGameOver = [] (boost::optional<durak::Player> const &durak, std::vector<GameUser> &_gameUsers, GameLobby::LobbyType lobbyType) {
   if (durak)
@@ -80,27 +118,17 @@ auto const handleGameOver = [] (boost::optional<durak::Player> const &durak, std
     }
   if (lobbyType == GameLobby::LobbyType::MatchMakingSystemRanked)
     {
-      auto accountNamesInGame = std::vector<std::string>{};
-      ranges::transform (_gameUsers, ranges::back_inserter (accountNamesInGame), [] (GameUser const &gameUser) { return gameUser._user->accountName.value_or ("Error User is not Logged  in but still in GameLobby"); });
-      auto const averangeRaitingInGame = averageRaiting (accountNamesInGame);
+      auto accountsInGame = std::vector<database::Account>{};
       soci::session sql (soci::sqlite3, databaseName);
-      ranges::for_each (_gameUsers, [&sql, averangeRaitingInGame] (GameUser const &gameUser) {
-        if (auto userInDatabase = confu_soci::findStruct<database::Account> (sql, "accountName", gameUser._user->accountName.value ()))
-          {
-            auto raitingChanged = shared_class::RaitingChanged{};
-            raitingChanged.oldRaiting = userInDatabase->raiting;
-            auto const newRaiting = calculateNewRaiting (userInDatabase->raiting, averangeRaitingInGame);
-            userInDatabase->raiting = newRaiting;
-            raitingChanged.newRaiting = newRaiting;
-            gameUser._user->msgQueue.push_back (objectToStringWithObjectName (raitingChanged));
-            confu_soci::upsertStruct (sql, userInDatabase.value ());
-          }
-        else
-          {
-            std::cout << "ABORT USER IN RANKED GAME AND NOT IN THE DATABASE" << std::endl;
-            abort ();
-          }
-      });
+      auto winners = std::vector<database::Account>{};
+      auto losers = std::vector<database::Account>{};
+
+      // clang-format off
+      _gameUsers 
+      >>= pipes::transform ([&sql] (auto const& gameUser) { return confu_soci::findStruct<database::Account> (sql, "accountName", gameUser._user->accountName.value ()).value (); }) 
+      >>= pipes::partition ([&durak] (database::Account const &account) { return account.accountName == durak->id; }, pipes::push_back (losers), pipes::push_back (winners));
+      // clang-format on
+      updateRating (_gameUsers, losers, winners);
     }
 };
 

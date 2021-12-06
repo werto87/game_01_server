@@ -914,18 +914,16 @@ durakLeaveGame (std::shared_ptr<User> user, std::list<GameMachine> &gameMachines
 }
 auto constexpr ALLOWED_DIFFERENCE_FOR_RANKED_GAME_MATCHMAKING = size_t{ 100 };
 bool
-isInRaitingrange (size_t userRaiting, size_t lobbyAverageRaiting)
+isInRatingrange (size_t userRating, size_t lobbyAverageRating)
 {
-  auto const difference = userRaiting > lobbyAverageRaiting ? userRaiting - lobbyAverageRaiting : lobbyAverageRaiting - userRaiting;
+  auto const difference = userRating > lobbyAverageRating ? userRating - lobbyAverageRating : lobbyAverageRating - userRating;
   return difference < ALLOWED_DIFFERENCE_FOR_RANKED_GAME_MATCHMAKING;
 }
 
-
-
 bool
-checkRaiting (size_t userRaiting, std::vector<std::string> const &accountNames)
+checkRating (size_t userRating, std::vector<std::string> const &accountNames)
 {
-  return isInRaitingrange (userRaiting, averageRaiting (accountNames));
+  return isInRatingrange (userRating, averageRating (accountNames));
 }
 
 bool
@@ -938,7 +936,7 @@ matchingLobby (std::string const &accountName, GameLobby const &gameLobby, GameL
           soci::session sql (soci::sqlite3, databaseName);
           if (auto userInDatabase = confu_soci::findStruct<database::Account> (sql, "accountName", accountName))
             {
-              return checkRaiting (userInDatabase->raiting, gameLobby.accountNames ());
+              return checkRating (userInDatabase->rating, gameLobby.accountNames ());
             }
         }
       else

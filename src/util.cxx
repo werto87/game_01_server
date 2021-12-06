@@ -85,13 +85,13 @@ sendGameDataToAccountsInGame (durak::Game const &game, std::vector<GameUser> con
 }
 
 size_t
-averageRaiting (std::vector<std::string> const &accountNames)
+averageRating (std::vector<std::string> const &accountNames)
 {
   soci::session sql (soci::sqlite3, databaseName);
-  auto sumOfRaitingInTheLobby = ranges::accumulate (accountNames, size_t{}, [&] (auto x, std::string const &accountToCheck) {
+  auto sumOfRatingInTheLobby = ranges::accumulate (accountNames, size_t{}, [&] (auto x, std::string const &accountToCheck) {
     if (auto userInDatabase = confu_soci::findStruct<database::Account> (sql, "accountName", accountToCheck))
       {
-        return x + userInDatabase->raiting;
+        return x + userInDatabase->rating;
       }
     else
       {
@@ -100,5 +100,5 @@ averageRaiting (std::vector<std::string> const &accountNames)
         return x;
       }
   });
-  return boost::numeric_cast<size_t> (std::rintl (boost::numeric_cast<long double> (sumOfRaitingInTheLobby) / accountNames.size ()));
+  return boost::numeric_cast<size_t> (std::rintl (boost::numeric_cast<long double> (sumOfRatingInTheLobby) / accountNames.size ()));
 }
