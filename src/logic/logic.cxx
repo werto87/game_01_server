@@ -91,7 +91,6 @@ handleMessage (std::string const &msg, boost::asio::io_context &io_context, boos
   boost::algorithm::split (splitMesssage, msg, boost::is_any_of ("|"));
   if (splitMesssage.size () == 2)
     {
-      // TODO diferentiate between logged in and not logged user actions
       auto const &typeToSearch = splitMesssage.at (0);
       auto const &objectAsString = splitMesssage.at (1);
       if (typeToSearch == "CreateAccount")
@@ -106,46 +105,6 @@ handleMessage (std::string const &msg, boost::asio::io_context &io_context, boos
           user->ignoreCreateAccount = false;
           user->ignoreLogin = false;
         }
-      else if (typeToSearch == "BroadCastMessage")
-        {
-          broadCastMessage (objectAsString, users, *user);
-        }
-      else if (typeToSearch == "JoinChannel")
-        {
-          joinChannel (objectAsString, user);
-        }
-      else if (user->accountName && typeToSearch == "LeaveChannel")
-        {
-          leaveChannel (objectAsString, user);
-        }
-      else if (typeToSearch == "LogoutAccount")
-        {
-          logoutAccount (user, gameLobbies, gameMachines);
-        }
-      else if (typeToSearch == "CreateGameLobby")
-        {
-          createGameLobby (objectAsString, user, gameLobbies);
-        }
-      else if (typeToSearch == "JoinGameLobby")
-        {
-          joinGameLobby (objectAsString, user, gameLobbies);
-        }
-      else if (typeToSearch == "SetMaxUserSizeInCreateGameLobby")
-        {
-          setMaxUserSizeInCreateGameLobby (objectAsString, user, gameLobbies);
-        }
-      else if (typeToSearch == "GameOption")
-        {
-          setGameOption (objectAsString, user, gameLobbies);
-        }
-      else if (typeToSearch == "LeaveGameLobby")
-        {
-          leaveGameLobby (user, gameLobbies);
-        }
-      else if (typeToSearch == "RelogTo")
-        {
-          relogTo (objectAsString, user, gameLobbies, gameMachines);
-        }
       else if (typeToSearch == "LoginAccountCancel")
         {
           loginAccountCancel (user);
@@ -154,64 +113,109 @@ handleMessage (std::string const &msg, boost::asio::io_context &io_context, boos
         {
           createAccountCancel (user);
         }
-      else if (typeToSearch == "CreateGame")
-        {
-          createGame (user, gameLobbies, gameMachines, io_context);
-        }
-      else if (typeToSearch == "DurakAttack")
-        {
-          durakAttack (objectAsString, user, gameMachines);
-        }
-      else if (typeToSearch == "DurakDefend")
-        {
-          durakDefend (objectAsString, user, gameMachines);
-        }
-      else if (typeToSearch == "DurakDefendPass")
-        {
-          durakDefendPass (user, gameMachines);
-        }
-      else if (typeToSearch == "DurakAttackPass")
-        {
-          durakAttackPass (user, gameMachines);
-        }
-      else if (typeToSearch == "DurakAssistPass")
-        {
-          durakAssistPass (user, gameMachines);
-        }
-      else if (typeToSearch == "DurakAskDefendWantToTakeCardsAnswer")
-        {
-          durakAskDefendWantToTakeCardsAnswer (objectAsString, user, gameMachines);
-        }
-      else if (typeToSearch == "DurakLeaveGame")
-        {
-          durakLeaveGame (user, gameMachines);
-        }
-      else if (typeToSearch == "SetTimerOption")
-        {
-          setTimerOption (objectAsString, user, gameLobbies);
-        }
-
-      else if (typeToSearch == "JoinMatchMakingQueue")
-        {
-
-          joinMatchMakingQueue (user, gameLobbies, io_context, (stringToObject<shared_class::JoinMatchMakingQueue> (objectAsString).isRanked) ? GameLobby::LobbyType::MatchMakingSystemRanked : GameLobby::LobbyType::MatchMakingSystemUnranked);
-        }
-
-      else if (typeToSearch == "WantsToJoinGame")
-        {
-          wantsToJoinGame (objectAsString, user, gameLobbies, gameMachines, io_context);
-        }
-      else if (typeToSearch == "LeaveQuickGameQueue")
-        {
-          leaveMatchMakingQueue (user, gameLobbies);
-        }
       else if (typeToSearch == "LoginAsGuest")
         {
           loginAsGuest (user);
         }
-      else if (typeToSearch == "JoinRankedGameQueue")
+      else if (user->accountName)
         {
-          joinMatchMakingQueue (user, gameLobbies, io_context, GameLobby::LobbyType::MatchMakingSystemRanked);
+          if (typeToSearch == "BroadCastMessage")
+            {
+              broadCastMessage (objectAsString, users, *user);
+            }
+          else if (typeToSearch == "JoinChannel")
+            {
+              joinChannel (objectAsString, user);
+            }
+          else if (typeToSearch == "LeaveChannel")
+            {
+              leaveChannel (objectAsString, user);
+            }
+          else if (typeToSearch == "LogoutAccount")
+            {
+              logoutAccount (user, gameLobbies, gameMachines);
+            }
+          else if (typeToSearch == "CreateGameLobby")
+            {
+              createGameLobby (objectAsString, user, gameLobbies);
+            }
+          else if (typeToSearch == "JoinGameLobby")
+            {
+              joinGameLobby (objectAsString, user, gameLobbies);
+            }
+          else if (typeToSearch == "SetMaxUserSizeInCreateGameLobby")
+            {
+              setMaxUserSizeInCreateGameLobby (objectAsString, user, gameLobbies);
+            }
+          else if (typeToSearch == "GameOption")
+            {
+              setGameOption (objectAsString, user, gameLobbies);
+            }
+          else if (typeToSearch == "LeaveGameLobby")
+            {
+              leaveGameLobby (user, gameLobbies);
+            }
+          else if (typeToSearch == "RelogTo")
+            {
+              relogTo (objectAsString, user, gameLobbies, gameMachines);
+            }
+          else if (typeToSearch == "CreateGame")
+            {
+              createGame (user, gameLobbies, gameMachines, io_context);
+            }
+          else if (typeToSearch == "DurakAttack")
+            {
+              durakAttack (objectAsString, user, gameMachines);
+            }
+          else if (typeToSearch == "DurakDefend")
+            {
+              durakDefend (objectAsString, user, gameMachines);
+            }
+          else if (typeToSearch == "DurakDefendPass")
+            {
+              durakDefendPass (user, gameMachines);
+            }
+          else if (typeToSearch == "DurakAttackPass")
+            {
+              durakAttackPass (user, gameMachines);
+            }
+          else if (typeToSearch == "DurakAssistPass")
+            {
+              durakAssistPass (user, gameMachines);
+            }
+          else if (typeToSearch == "DurakAskDefendWantToTakeCardsAnswer")
+            {
+              durakAskDefendWantToTakeCardsAnswer (objectAsString, user, gameMachines);
+            }
+          else if (typeToSearch == "DurakLeaveGame")
+            {
+              durakLeaveGame (user, gameMachines);
+            }
+          else if (typeToSearch == "SetTimerOption")
+            {
+              setTimerOption (objectAsString, user, gameLobbies);
+            }
+          else if (typeToSearch == "JoinMatchMakingQueue")
+            {
+              joinMatchMakingQueue (user, gameLobbies, io_context, (stringToObject<shared_class::JoinMatchMakingQueue> (objectAsString).isRanked) ? GameLobby::LobbyType::MatchMakingSystemRanked : GameLobby::LobbyType::MatchMakingSystemUnranked);
+            }
+          else if (typeToSearch == "WantsToJoinGame")
+            {
+              wantsToJoinGame (objectAsString, user, gameLobbies, gameMachines, io_context);
+            }
+          else if (typeToSearch == "LeaveQuickGameQueue")
+            {
+              leaveMatchMakingQueue (user, gameLobbies);
+            }
+          else if (typeToSearch == "JoinRankedGameQueue")
+            {
+              joinMatchMakingQueue (user, gameLobbies, io_context, GameLobby::LobbyType::MatchMakingSystemRanked);
+            }
+          else
+            {
+              std::cout << "UnhandledMessage|{\"message\": \"" << msg << "\"}" << std::endl;
+              user->msgQueue.push_back ("UnhandledMessage|{\"message\": \"" + msg + "\"}");
+            }
         }
       else
         {
