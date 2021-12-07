@@ -511,27 +511,34 @@ createGame (std::shared_ptr<User> user, std::list<GameLobby> &gameLobbies, boost
                                                 });
       gameLobbyWithUser != gameLobbies.end ())
     {
-      if (gameLobbyWithUser->isAllowedToChangeGameOption (user->accountName.value ()))
+      if (gameLobbyWithUser->getWaitingForAnswerToStartGame ())
         {
-          if (gameLobbyWithUser->accountNames ().size () >= 2)
+          user->msgQueue.push_back (objectToStringWithObjectName (shared_class::CreateGameError{ "It is not allowed to start a game while ask to start a game is running" }));
+        }
+      else
+        {
+          if (gameLobbyWithUser->isGameLobbyAdmin (user->accountName.value ()))
             {
-              if (auto gameOptionError = errorInGameOption (gameLobbyWithUser->gameOption))
+              if (gameLobbyWithUser->accountNames ().size () >= 2)
                 {
-                  user->msgQueue.push_back (objectToStringWithObjectName (gameOptionError.value ()));
+                  if (auto gameOptionError = errorInGameOption (gameLobbyWithUser->gameOption))
+                    {
+                      user->msgQueue.push_back (objectToStringWithObjectName (gameOptionError.value ()));
+                    }
+                  else
+                    {
+                      askUsersToJoinGame (gameLobbyWithUser, gameLobbies, io_context);
+                    }
                 }
               else
                 {
-                  askUsersToJoinGame (gameLobbyWithUser, gameLobbies, io_context);
+                  user->msgQueue.push_back (objectToStringWithObjectName (shared_class::CreateGameError{ "You need atleast two user to create a game" }));
                 }
             }
           else
             {
-              user->msgQueue.push_back (objectToStringWithObjectName (shared_class::CreateGameError{ "You need atleast two user to create a game" }));
+              user->msgQueue.push_back (objectToStringWithObjectName (shared_class::CreateGameError{ "you need to be admin in a game lobby to start a game" }));
             }
-        }
-      else
-        {
-          user->msgQueue.push_back (objectToStringWithObjectName (shared_class::CreateGameError{ "you need to be admin in a game lobby to start a game" }));
         }
     }
   else
@@ -627,23 +634,30 @@ setMaxUserSizeInCreateGameLobby (std::string const &objectAsString, std::shared_
                                                    });
       gameLobbyWithAccount != gameLobbies.end ())
     {
-      if (gameLobbyWithAccount->isAllowedToChangeGameOption (user->accountName.value ()))
+      if (gameLobbyWithAccount->getWaitingForAnswerToStartGame ())
         {
-          if (auto errorMessage = gameLobbyWithAccount->setMaxUserCount (setMaxUserSizeInCreateGameLobbyObject.maxUserSize))
-            {
-              user->msgQueue.push_back (objectToStringWithObjectName (shared_class::SetMaxUserSizeInCreateGameLobbyError{ errorMessage.value () }));
-              return;
-            }
-          else
-            {
-              gameLobbyWithAccount->sendToAllAccountsInGameLobby (objectToStringWithObjectName (shared_class::MaxUserSizeInCreateGameLobby{ setMaxUserSizeInCreateGameLobbyObject.maxUserSize }));
-              return;
-            }
+          user->msgQueue.push_back (objectToStringWithObjectName (shared_class::SetMaxUserSizeInCreateGameLobbyError{ "It is not allowed to change lobby while ask to start a game is running" }));
         }
       else
         {
-          user->msgQueue.push_back (objectToStringWithObjectName (shared_class::SetMaxUserSizeInCreateGameLobbyError{ "you need to be admin in a game lobby to change the user size" }));
-          return;
+          if (gameLobbyWithAccount->isGameLobbyAdmin (user->accountName.value ()))
+            {
+              if (auto errorMessage = gameLobbyWithAccount->setMaxUserCount (setMaxUserSizeInCreateGameLobbyObject.maxUserSize))
+                {
+                  user->msgQueue.push_back (objectToStringWithObjectName (shared_class::SetMaxUserSizeInCreateGameLobbyError{ errorMessage.value () }));
+                  return;
+                }
+              else
+                {
+                  gameLobbyWithAccount->sendToAllAccountsInGameLobby (objectToStringWithObjectName (shared_class::MaxUserSizeInCreateGameLobby{ setMaxUserSizeInCreateGameLobbyObject.maxUserSize }));
+                  return;
+                }
+            }
+          else
+            {
+              user->msgQueue.push_back (objectToStringWithObjectName (shared_class::SetMaxUserSizeInCreateGameLobbyError{ "you need to be admin in a game lobby to change the user size" }));
+              return;
+            }
         }
     }
   else
@@ -665,16 +679,23 @@ setGameOption (std::string const &objectAsString, std::shared_ptr<User> user, st
                                                    });
       gameLobbyWithAccount != gameLobbies.end ())
     {
-      if (gameLobbyWithAccount->isAllowedToChangeGameOption (user->accountName.value ()))
+      if (gameLobbyWithAccount->getWaitingForAnswerToStartGame ())
         {
-          gameLobbyWithAccount->gameOption = gameOption;
-          gameLobbyWithAccount->sendToAllAccountsInGameLobby (objectToStringWithObjectName (gameOption));
-          return;
+          user->msgQueue.push_back (objectToStringWithObjectName (shared_class::GameOptionError{ "It is not allowed to change game option while ask to start a game is running" }));
         }
       else
         {
-          user->msgQueue.push_back (objectToStringWithObjectName (shared_class::GameOptionError{ "you need to be admin in the create game lobby to change game option" }));
-          return;
+          if (gameLobbyWithAccount->isGameLobbyAdmin (user->accountName.value ()))
+            {
+              gameLobbyWithAccount->gameOption = gameOption;
+              gameLobbyWithAccount->sendToAllAccountsInGameLobby (objectToStringWithObjectName (gameOption));
+              return;
+            }
+          else
+            {
+              user->msgQueue.push_back (objectToStringWithObjectName (shared_class::GameOptionError{ "you need to be admin in the create game lobby to change game option" }));
+              return;
+            }
         }
     }
   else
@@ -696,15 +717,22 @@ setTimerOption (std::string const &objectAsString, std::shared_ptr<User> user, s
                                                    });
       gameLobbyWithAccount != gameLobbies.end ())
     {
-      if (gameLobbyWithAccount->isAllowedToChangeGameOption (user->accountName.value ()))
+      if (gameLobbyWithAccount->getWaitingForAnswerToStartGame ())
         {
-          using namespace std::chrono;
-          gameLobbyWithAccount->timerOption = TimerOption{ setTimerOptionObject.timerType, seconds (setTimerOptionObject.timeAtStartInSeconds), seconds (setTimerOptionObject.timeForEachRoundInSeconds) };
-          gameLobbyWithAccount->sendToAllAccountsInGameLobby (objectToStringWithObjectName (setTimerOptionObject));
+          user->msgQueue.push_back (objectToStringWithObjectName (shared_class::GameOptionError{ "It is not allowed to change timer option while ask to start a game is running" }));
         }
       else
         {
-          user->msgQueue.push_back (objectToStringWithObjectName (shared_class::SetTimerOptionError{ "you need to be admin in a game lobby to change the timer option" }));
+          if (gameLobbyWithAccount->isGameLobbyAdmin (user->accountName.value ()))
+            {
+              using namespace std::chrono;
+              gameLobbyWithAccount->timerOption = TimerOption{ setTimerOptionObject.timerType, seconds (setTimerOptionObject.timeAtStartInSeconds), seconds (setTimerOptionObject.timeForEachRoundInSeconds) };
+              gameLobbyWithAccount->sendToAllAccountsInGameLobby (objectToStringWithObjectName (setTimerOptionObject));
+            }
+          else
+            {
+              user->msgQueue.push_back (objectToStringWithObjectName (shared_class::SetTimerOptionError{ "you need to be admin in a game lobby to change the timer option" }));
+            }
         }
     }
   else

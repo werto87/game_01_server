@@ -29,7 +29,7 @@ struct GameLobby
   std::optional<std::string> setMaxUserCount (size_t userMaxCount);
 
   std::vector<std::string> accountNames () const;
-  bool isAllowedToChangeGameOption (std::string const &accountName) const;
+  bool isGameLobbyAdmin (std::string const &accountName) const;
   std::optional<std::string> tryToAddUser (std::shared_ptr<User> const &user);
   bool tryToRemoveUser (std::string const &userWhoTriesToRemove, std::string const &userToRemoveName);
   bool removeUser (std::shared_ptr<User> const &user);
