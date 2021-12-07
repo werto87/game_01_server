@@ -36,9 +36,9 @@ GameLobby::accountNames () const
 }
 
 bool
-GameLobby::isGameLobbyAdmin (std::string const &accountName) const
+GameLobby::isAllowedToChangeGameOption (std::string const &accountName) const
 {
-  return lobbyAdminType == LobbyType::FirstUserInLobbyUsers && _users.front ()->accountName.value () == accountName;
+  return not waitingForAnswerToStartGame && lobbyAdminType == LobbyType::FirstUserInLobbyUsers && _users.front ()->accountName.value () == accountName;
 }
 
 size_t
@@ -71,7 +71,7 @@ GameLobby::tryToAddUser (std::shared_ptr<User> const &user)
 bool
 GameLobby::tryToRemoveUser (std::string const &userWhoTriesToRemove, std::string const &userToRemoveName)
 {
-  if (isGameLobbyAdmin (userWhoTriesToRemove) && userWhoTriesToRemove != userToRemoveName)
+  if (isAllowedToChangeGameOption (userWhoTriesToRemove) && userWhoTriesToRemove != userToRemoveName)
     {
       if (auto userToRemoveFromLobby = ranges::find_if (_users, [&userToRemoveName] (auto const &user) { return userToRemoveName == user->accountName; }); userToRemoveFromLobby != _users.end ())
         {

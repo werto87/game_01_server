@@ -22,7 +22,7 @@ void setMaxUserSizeInCreateGameLobby (std::string const &objectAsString, std::sh
 void setGameOption (std::string const &objectAsString, std::shared_ptr<User> user, std::list<GameLobby> &gameLobbies);
 void leaveGameLobby (std::shared_ptr<User> user, std::list<GameLobby> &gameLobbies);
 void relogTo (std::string const &objectAsString, std::shared_ptr<User> user, std::list<GameLobby> &gameLobbies, std::list<GameMachine> &gameMachines);
-void createGame (std::shared_ptr<User> user, std::list<GameLobby> &gameLobbies, std::list<GameMachine> &gameMachines, boost::asio::io_context &io_context);
+void createGame (std::shared_ptr<User> user, std::list<GameLobby> &gameLobbies, boost::asio::io_context &io_context);
 void durakAttack (std::string const &objectAsString, std::shared_ptr<User> user, std::list<GameMachine> &gameMachines);
 void durakDefend (std::string const &objectAsString, std::shared_ptr<User> user, std::list<GameMachine> &gameMachines);
 void durakDefendPass (std::shared_ptr<User> user, std::list<GameMachine> &gameMachines);

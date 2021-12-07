@@ -684,7 +684,6 @@ struct PassMachine
   auto
   operator() () const
   {
-    // TODO when we get back to chill we cann send start round data and remove roundStartSendAllowedMovesAndGameData calls inside functions
     using namespace boost::sml;
     return make_transition_table (
         // clang-format off
