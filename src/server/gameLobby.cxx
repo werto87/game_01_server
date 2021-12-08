@@ -172,6 +172,7 @@ GameLobby::cancelTimer ()
       sendToAllAccountsInGameLobby (objectToStringWithObjectName (shared_class::GameStartCanceled{}));
       readyUsers.clear ();
       _timer->cancel ();
+      waitingForAnswerToStartGame = false;
     }
 }
 
