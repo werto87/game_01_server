@@ -9,6 +9,7 @@ util.hxx
 util.cxx
 gameMachine.cxx
 rating.cxx
+durakStateMachine.cxx
 ${TARGET_SOURCES}
  )
  target_compile_definitions(${TEST_TARGET_NAME} PRIVATE _LIBCPP_ENABLE_CXX20_REMOVED_TYPE_TRAITS)
