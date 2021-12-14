@@ -1,47 +1,8 @@
 #include "src/server/server.hxx"
 #include "src/logic/logic.hxx"
-#include <algorithm>
-#include <boost/algorithm/algorithm.hpp>
-#include <boost/algorithm/string.hpp>
-#include <boost/algorithm/string/predicate.hpp>
-#include <boost/algorithm/string/split.hpp>
-#include <boost/archive/text_iarchive.hpp>
-#include <boost/archive/text_oarchive.hpp>
-#include <boost/asio.hpp>
-#include <boost/asio/io_context.hpp>
-#include <boost/asio/ssl.hpp>
-#include <boost/beast.hpp>
-#include <boost/beast/ssl.hpp>
-#include <boost/beast/websocket.hpp>
-#include <boost/beast/websocket/ssl.hpp>
-#include <boost/certify/extensions.hpp>
 #include <boost/certify/https_verification.hpp>
-#include <boost/date_time/posix_time/posix_time_duration.hpp>
-#include <boost/lexical_cast.hpp>
-#include <boost/optional.hpp>
-#include <boost/optional/optional_io.hpp>
-#include <boost/random/random_device.hpp>
-#include <boost/random/uniform_int_distribution.hpp>
-#include <boost/range/adaptor/indexed.hpp>
-#include <boost/serialization/optional.hpp>
-#include <boost/type_index.hpp>
-#include <boost/uuid/uuid.hpp>
-#include <boost/uuid/uuid_generators.hpp>
-#include <boost/uuid/uuid_io.hpp>
-#include <cstddef>
 #include <experimental/coroutine>
-#include <iostream>
-#include <memory>
-#include <openssl/ssl.h>
-#include <sodium.h>
-#include <sstream>
-#include <stdexcept>
-#include <string>
-#include <tuple>
-#include <type_traits>
 
-namespace net = boost::asio;
-namespace beast = boost::beast;
 using namespace boost::beast;
 using namespace boost::asio;
 namespace beast = boost::beast;   // from <boost/beast.hpp>
