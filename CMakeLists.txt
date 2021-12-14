@@ -1,10 +1,3 @@
-#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -fcoroutines")
-#set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -g -fuse-ld=lld -fcoroutines")
-
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}  -std=c++20 -stdlib=libc++")
-set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -std=c++20 -stdlib=libc++ -lc++abi")
-
-#set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fcoroutines -v")
 cmake_minimum_required(VERSION 3.17)
 project(project VERSION 1.0.0
   DESCRIPTION project
@@ -34,12 +27,12 @@ target_compile_features(${PROJECT_OPTIONS} INTERFACE cxx_std_20)
 # )
 
 
-#include(cmake/Sanitizers.cmake)
-#enable_sanitizers(${PROJECT_OPTIONS})
 
 #allow for static analysis options
 include(cmake/StaticAnalyzers.cmake) 
 
+include(cmake/Sanitizers.cmake)
+enable_sanitizers(${PROJECT_OPTIONS})
  
 ######## conan setup
 include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)

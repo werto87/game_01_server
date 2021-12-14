@@ -1,7 +1,9 @@
 #include "src/server/server.hxx"
 #include "src/logic/logic.hxx"
 #include <boost/certify/https_verification.hpp>
+#ifdef BOOST_ASIO_HAS_CLANG_LIBCXX
 #include <experimental/coroutine>
+#endif
 
 using namespace boost::beast;
 using namespace boost::asio;
