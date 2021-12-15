@@ -4,101 +4,51 @@ project(project VERSION 1.0.0
   LANGUAGES CXX
   ) 
 cmake_policy(SET CMP0015 NEW)
-
-
-
-
-########## enable cache system
 include(cmake/Cache.cmake)
-
-########## link against the libs to apply the configurations to the target
-# compiler warnings
 set(PROJECT_WARNINGS project_warning)
 add_library(${PROJECT_WARNINGS} INTERFACE)
 include(cmake/CompilerWarnings.cmake)
 set_project_warnings(${PROJECT_WARNINGS})
-# compiler options
 set(PROJECT_OPTIONS project_options)
-
-
 add_library(${PROJECT_OPTIONS} INTERFACE)
 target_compile_features(${PROJECT_OPTIONS} INTERFACE cxx_std_20)
-# target_precompile_headers(${PROJECT_OPTIONS} INTERFACE 
-# )
-
-
-
-#allow for static analysis options
 include(cmake/StaticAnalyzers.cmake) 
-
 include(cmake/Sanitizers.cmake)
 enable_sanitizers(${PROJECT_OPTIONS})
- 
-######## conan setup
 include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
 conan_basic_setup(TARGETS)
-
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-set(TARGET_NAME project)
-add_executable(${TARGET_NAME})
-
+set(TARGET_NAME_LIB project_lib)
+add_library(${TARGET_NAME_LIB} OBJECT)
 add_subdirectory(src) 
-target_include_directories(${TARGET_NAME} PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
-target_include_directories(${TARGET_NAME} PRIVATE
+target_include_directories(${TARGET_NAME_LIB} PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
+target_include_directories(${TARGET_NAME_LIB} PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
   $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
   )
-  
-
-target_link_libraries(${TARGET_NAME} PRIVATE
+target_link_libraries(${TARGET_NAME_LIB} PUBLIC
 ${PROJECT_WARNINGS}
 ${PROJECT_OPTIONS}
-CONAN_PKG::range-v3
-CONAN_PKG::confu_soci
-CONAN_PKG::confu_json
-CONAN_PKG::libsodium
-CONAN_PKG::game_01_shared_class
-CONAN_PKG::sml
-CONAN_PKG::certify
+  CONAN_PKG::range-v3
+  CONAN_PKG::confu_soci
+  CONAN_PKG::confu_json
+  CONAN_PKG::libsodium
+  CONAN_PKG::game_01_shared_class
+  CONAN_PKG::sml
+  CONAN_PKG::certify
 )
-
-####### create executable
+target_compile_definitions(${TARGET_NAME_LIB} PUBLIC "$<$<CONFIG:DEBUG>:DEBUG>")
+target_compile_definitions(${TARGET_NAME_LIB} PUBLIC _LIBCPP_ENABLE_CXX20_REMOVED_TYPE_TRAITS)
+# create executable
 OPTION(BUILD_TESTS "enable tests" OFF)
 IF(BUILD_TESTS)
     enable_testing()
     add_subdirectory(test) 
 ENDIF(BUILD_TESTS)
-
-# add main after  add_subdirectory(test) so we can take the sources from ${TARGET_NAME} and dont have to remove main.cxx from that list
-target_sources(${TARGET_NAME} PRIVATE 
-"main.cxx"
+set(TARGET_NAME project)
+add_executable(${TARGET_NAME}
+  main.cxx
 )
-
-if (CMAKE_BINARY_DIR)
-target_compile_definitions(${TARGET_NAME} PRIVATE PATH_TO_BINARY="${CMAKE_BINARY_DIR}")
-endif()
-
-target_compile_definitions(${TARGET_NAME} PRIVATE _LIBCPP_ENABLE_CXX20_REMOVED_TYPE_TRAITS)
-
-target_compile_definitions(${TARGET_NAME} PUBLIC "$<$<CONFIG:DEBUG>:DEBUG>")
-
-######## add sub dir
-
-
-####### include what you use
-#find_program(iwyu_path NAMES include-what-you-use iwyu)
-#set_property(TARGET ${TARGET_NAME} PROPERTY CXX_INCLUDE_WHAT_YOU_USE ${iwyu_path})
-
-
-####### link
-
-
-
-
-
-#print all variables used in cmake
-# get_cmake_property(_variableNames VARIABLES)
-# list (SORT _variableNames)
-# foreach (_variableName ${_variableNames})
-#    message(STATUS "${_variableName}=${${_variableName}}")
-# endforeach()
+target_link_libraries(${TARGET_NAME} PUBLIC
+  ${TARGET_NAME_LIB}
+)

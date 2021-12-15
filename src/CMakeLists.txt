@@ -1,4 +1,4 @@
-target_sources(${TARGET_NAME} PRIVATE 
+target_sources(${TARGET_NAME_LIB} PRIVATE 
 util.cxx
 ${CMAKE_CURRENT_LIST_DIR}/util.hxx
 )
