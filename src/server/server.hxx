@@ -18,8 +18,6 @@
 #include <queue>
 #include <string>
 
-typedef boost::beast::websocket::stream<boost::beast::ssl_stream<boost::beast::tcp_stream>> SSLWebsocket;
-
 class Server
 {
 public:
@@ -32,8 +30,6 @@ private:
   boost::asio::awaitable<std::string> my_read (SSLWebsocket &ws_);
 
   boost::asio::awaitable<void> readFromClient (std::list<std::shared_ptr<User>>::iterator user, SSLWebsocket &connection);
-
-  boost::asio::awaitable<void> writeToClient (std::shared_ptr<User> user, std::weak_ptr<SSLWebsocket> &connection);
 
   boost::asio::io_context &_io_context;
   boost::asio::thread_pool &_pool;

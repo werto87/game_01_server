@@ -57,21 +57,21 @@ sendAvailableMoves (durak::Game const &game, std::vector<GameUser> const &_gameU
     {
       if (auto attackingUser = ranges::find_if (_gameUsers, [attackingPlayerName = attackingPlayer->id] (GameUser const &gameUser) { return gameUser._user->accountName == attackingPlayerName; }); attackingUser != _gameUsers.end ())
         {
-          attackingUser->_user->msgQueue.push_back (objectToStringWithObjectName (allowedMoves (game, durak::PlayerRole::attack, removeFromAllowedMoves.attack, addToAllowedMoves.attack)));
+          attackingUser->_user->sendMessageToUser (objectToStringWithObjectName (allowedMoves (game, durak::PlayerRole::attack, removeFromAllowedMoves.attack, addToAllowedMoves.attack)));
         }
     }
   if (auto assistingPlayer = game.getAssistingPlayer ())
     {
       if (auto assistingUser = ranges::find_if (_gameUsers, [assistingPlayerName = assistingPlayer->id] (GameUser const &gameUser) { return gameUser._user->accountName == assistingPlayerName; }); assistingUser != _gameUsers.end ())
         {
-          assistingUser->_user->msgQueue.push_back (objectToStringWithObjectName (allowedMoves (game, durak::PlayerRole::assistAttacker, removeFromAllowedMoves.assist, addToAllowedMoves.assist)));
+          assistingUser->_user->sendMessageToUser (objectToStringWithObjectName (allowedMoves (game, durak::PlayerRole::assistAttacker, removeFromAllowedMoves.assist, addToAllowedMoves.assist)));
         }
     }
   if (auto defendingPlayer = game.getDefendingPlayer ())
     {
       if (auto defendingUser = ranges::find_if (_gameUsers, [defendingPlayerName = defendingPlayer->id] (GameUser const &gameUser) { return gameUser._user->accountName == defendingPlayerName; }); defendingUser != _gameUsers.end ())
         {
-          defendingUser->_user->msgQueue.push_back (objectToStringWithObjectName (allowedMoves (game, durak::PlayerRole::defend, removeFromAllowedMoves.defend, addToAllowedMoves.defend)));
+          defendingUser->_user->sendMessageToUser (objectToStringWithObjectName (allowedMoves (game, durak::PlayerRole::defend, removeFromAllowedMoves.defend, addToAllowedMoves.defend)));
         }
     }
 }
@@ -81,7 +81,7 @@ sendGameDataToAccountsInGame (durak::Game const &game, std::vector<GameUser> con
 {
   auto gameData = game.getGameData ();
   ranges::for_each (gameData.players, [] (auto &player) { ranges::sort (player.cards, [] (auto const &card1, auto const &card2) { return card1.value () < card2.value (); }); });
-  ranges::for_each (_gameUsers, [&gameData] (auto const &gameUser) { gameUser._user->msgQueue.push_back (objectToStringWithObjectName (filterGameDataByAccountName (gameData, gameUser._user->accountName.value ()))); });
+  ranges::for_each (_gameUsers, [&gameData] (auto const &gameUser) { gameUser._user->sendMessageToUser (objectToStringWithObjectName (filterGameDataByAccountName (gameData, gameUser._user->accountName.value ()))); });
 }
 
 size_t

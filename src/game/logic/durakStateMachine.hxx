@@ -89,7 +89,7 @@ void inline updateRatingWinLose (std::vector<GameUser> &_gameUsers, std::vector<
       confu_soci::upsertStruct (sql, winner);
       if (auto gameUser = ranges::find_if (_gameUsers, [accountName = winner.accountName] (GameUser const &gameUser) { return gameUser._user->accountName.value () == accountName; }); gameUser != _gameUsers.end ())
         {
-          gameUser->_user->msgQueue.push_back (objectToStringWithObjectName (shared_class::RatingChanged{ oldRating, winner.rating }));
+          gameUser->_user->sendMessageToUser (objectToStringWithObjectName (shared_class::RatingChanged{ oldRating, winner.rating }));
         }
     }
   for (auto &loser : losers)
@@ -100,7 +100,7 @@ void inline updateRatingWinLose (std::vector<GameUser> &_gameUsers, std::vector<
       confu_soci::upsertStruct (sql, loser);
       if (auto gameUser = ranges::find_if (_gameUsers, [accountName = loser.accountName] (GameUser const &gameUser) { return gameUser._user->accountName.value () == accountName; }); gameUser != _gameUsers.end ())
         {
-          gameUser->_user->msgQueue.push_back (objectToStringWithObjectName (shared_class::RatingChanged{ oldRating, loser.rating }));
+          gameUser->_user->sendMessageToUser (objectToStringWithObjectName (shared_class::RatingChanged{ oldRating, loser.rating }));
         }
     }
 }
@@ -135,7 +135,7 @@ void inline updateRatingDraw (std::vector<GameUser> &_gameUsers, std::vector<dat
       confu_soci::upsertStruct (sql, winner);
       if (auto gameUser = ranges::find_if (_gameUsers, [accountName = winner.accountName] (GameUser const &gameUser) { return gameUser._user->accountName.value () == accountName; }); gameUser != _gameUsers.end ())
         {
-          gameUser->_user->msgQueue.push_back (objectToStringWithObjectName (shared_class::RatingChanged{ oldRating, winner.rating }));
+          gameUser->_user->sendMessageToUser (objectToStringWithObjectName (shared_class::RatingChanged{ oldRating, winner.rating }));
         }
     }
   for (auto &loser : losers)
@@ -146,7 +146,7 @@ void inline updateRatingDraw (std::vector<GameUser> &_gameUsers, std::vector<dat
       confu_soci::upsertStruct (sql, loser);
       if (auto gameUser = ranges::find_if (_gameUsers, [accountName = loser.accountName] (GameUser const &gameUser) { return gameUser._user->accountName.value () == accountName; }); gameUser != _gameUsers.end ())
         {
-          gameUser->_user->msgQueue.push_back (objectToStringWithObjectName (shared_class::RatingChanged{ oldRating, loser.rating }));
+          gameUser->_user->sendMessageToUser (objectToStringWithObjectName (shared_class::RatingChanged{ oldRating, loser.rating }));
         }
     }
 }
@@ -155,14 +155,14 @@ auto const handleGameOver = [] (boost::optional<durak::Player> const &durak, std
   if (durak)
     {
       ranges::for_each (_gameUsers, [durak = durak->id] (auto const &gameUser) {
-        if (gameUser._user->accountName == durak) gameUser._user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverLose{}));
+        if (gameUser._user->accountName == durak) gameUser._user->sendMessageToUser (objectToStringWithObjectName (shared_class::DurakGameOverLose{}));
         else
-          gameUser._user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverWon{}));
+          gameUser._user->sendMessageToUser (objectToStringWithObjectName (shared_class::DurakGameOverWon{}));
       });
     }
   else
     {
-      ranges::for_each (_gameUsers, [] (auto const &gameUser) { gameUser._user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakGameOverDraw{})); });
+      ranges::for_each (_gameUsers, [] (auto const &gameUser) { gameUser._user->sendMessageToUser (objectToStringWithObjectName (shared_class::DurakGameOverDraw{})); });
     }
   if (lobbyType == GameLobby::LobbyType::MatchMakingSystemRanked)
     {
@@ -233,7 +233,7 @@ auto const sendTimer = [] (std::vector<GameUser> &_gameUsers, TimerOption &timer
             durakTimers.runningTimeUserTimePointMilliseconds.push_back (std::make_pair (gameUser._user->accountName.value (), duration_cast<milliseconds> (gameUser._timer->expiry ().time_since_epoch ()).count ()));
           }
       });
-      ranges::for_each (_gameUsers, [&durakTimers] (auto const &gameUser) { gameUser._user->msgQueue.push_back (objectToStringWithObjectName (durakTimers)); });
+      ranges::for_each (_gameUsers, [&durakTimers] (auto const &gameUser) { gameUser._user->sendMessageToUser (objectToStringWithObjectName (durakTimers)); });
     }
 };
 
@@ -282,14 +282,14 @@ sendAllowedMovesForUserWithName (durak::Game &game, std::vector<GameUser> &_game
 {
   if (auto gameUserItr = ranges::find_if (_gameUsers, [&userName] (auto const &gameUser) { return gameUser._user->accountName.value () == userName; }); gameUserItr != _gameUsers.end ())
     {
-      gameUserItr->_user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAllowedMoves{ calculateAllowedMoves (game, game.getRoleForName (userName)) }));
+      gameUserItr->_user->sendMessageToUser (objectToStringWithObjectName (shared_class::DurakAllowedMoves{ calculateAllowedMoves (game, game.getRoleForName (userName)) }));
     }
 }
 
 auto const userReloggedInChillState = [] (userRelogged const &userReloggedEv, durak::Game &game, std::vector<GameUser> &_gameUsers) {
   if (auto gameUserItr = ranges::find_if (_gameUsers, [userName = userReloggedEv.accountName] (auto const &gameUser) { return gameUser._user->accountName.value () == userName; }); gameUserItr != _gameUsers.end ())
     {
-      gameUserItr->_user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAllowedMoves{ calculateAllowedMoves (game, game.getRoleForName (userReloggedEv.accountName)) }));
+      gameUserItr->_user->sendMessageToUser (objectToStringWithObjectName (shared_class::DurakAllowedMoves{ calculateAllowedMoves (game, game.getRoleForName (userReloggedEv.accountName)) }));
     }
 };
 auto const userReloggedInAskDef = [] (userRelogged const &userReloggedEv, durak::Game &game, std::vector<GameUser> &_gameUsers) {
@@ -297,20 +297,20 @@ auto const userReloggedInAskDef = [] (userRelogged const &userReloggedEv, durak:
     {
       if (auto gameUserItr = ranges::find_if (_gameUsers, [userName = userReloggedEv.accountName] (auto const &gameUser) { return gameUser._user->accountName.value () == userName; }); gameUserItr != _gameUsers.end ())
         {
-          gameUserItr->_user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAllowedMoves{ { shared_class::Move::AnswerDefendWantsToTakeCardsYes, shared_class::Move::AnswerDefendWantsToTakeCardsNo } }));
+          gameUserItr->_user->sendMessageToUser (objectToStringWithObjectName (shared_class::DurakAllowedMoves{ { shared_class::Move::AnswerDefendWantsToTakeCardsYes, shared_class::Move::AnswerDefendWantsToTakeCardsNo } }));
         }
     }
 };
 
-auto const defendsWantsToTakeCardsSendMovesToAttackOrAssist = [] (durak::Game &game, durak::PlayerRole playerRole, std::deque<std::string> &msgQueue) {
+auto const defendsWantsToTakeCardsSendMovesToAttackOrAssist = [] (durak::Game &game, durak::PlayerRole playerRole, std::shared_ptr<User> &user) {
   auto allowedMoves = calculateAllowedMoves (game, playerRole);
   if (ranges::find_if (allowedMoves, [] (auto allowedMove) { return allowedMove == shared_class::Move::AddCards; }) != allowedMoves.end ())
     {
-      msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAllowedMoves{ { shared_class::Move::AttackAssistDoneAddingCards, shared_class::Move::AddCards } }));
+      user->sendMessageToUser (objectToStringWithObjectName (shared_class::DurakAllowedMoves{ { shared_class::Move::AttackAssistDoneAddingCards, shared_class::Move::AddCards } }));
     }
   else
     {
-      msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAllowedMoves{ { shared_class::Move::AttackAssistDoneAddingCards } }));
+      user->sendMessageToUser (objectToStringWithObjectName (shared_class::DurakAllowedMoves{ { shared_class::Move::AttackAssistDoneAddingCards } }));
     }
 };
 
@@ -319,7 +319,7 @@ auto const userReloggedInAskAttackAssist = [] (userRelogged const &userReloggedE
     {
       if ((not passAttackAndAssist.assist && game.getRoleForName (userReloggedEv.accountName) == durak::PlayerRole::assistAttacker) || (not passAttackAndAssist.attack && game.getRoleForName (userReloggedEv.accountName) == durak::PlayerRole::attack))
         {
-          defendsWantsToTakeCardsSendMovesToAttackOrAssist (game, game.getRoleForName (userReloggedEv.accountName), gameUserItr->_user->msgQueue);
+          defendsWantsToTakeCardsSendMovesToAttackOrAssist (game, game.getRoleForName (userReloggedEv.accountName), gameUserItr->_user);
         }
     }
 };
@@ -354,7 +354,7 @@ auto const isNotFirstRound = [] (durak::Game &game) { return game.getRound () > 
 auto const setAttackAnswer = [] (attackPass const &attackPassEv, PassAttackAndAssist &passAttackAndAssist, durak::Game &game, std::vector<GameUser> &_gameUsers, boost::sml::back::process<pauseTimer, sendTimerEv> process_event) {
   if (auto gameUserItr = ranges::find_if (_gameUsers, [accountName = attackPassEv.playerName] (auto const &gameUser) { return gameUser._user->accountName.value () == accountName; }); gameUserItr != _gameUsers.end ())
     {
-      auto &sendingUserMsgQueue = gameUserItr->_user->msgQueue;
+
       if (not passAttackAndAssist.attack)
         {
           if (game.getRoleForName (attackPassEv.playerName) == durak::PlayerRole::attack)
@@ -362,24 +362,23 @@ auto const setAttackAnswer = [] (attackPass const &attackPassEv, PassAttackAndAs
               passAttackAndAssist.attack = true;
               process_event (pauseTimer{ { attackPassEv.playerName } });
               process_event (sendTimerEv{});
-              sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAllowedMoves{ {} }));
-              sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendWantsToTakeCardsFromTableDoneAddingCardsSuccess{}));
+              gameUserItr->_user->sendMessageToUser (objectToStringWithObjectName (shared_class::DurakAllowedMoves{ {} }));
+              gameUserItr->_user->sendMessageToUser (objectToStringWithObjectName (shared_class::DurakDefendWantsToTakeCardsFromTableDoneAddingCardsSuccess{}));
             }
           else
             {
-              sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendWantsToTakeCardsFromTableDoneAddingCardsError{ "role is not attack" }));
+              gameUserItr->_user->sendMessageToUser (objectToStringWithObjectName (shared_class::DurakDefendWantsToTakeCardsFromTableDoneAddingCardsError{ "role is not attack" }));
             }
         }
       else
         {
-          sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendWantsToTakeCardsFromTableDoneAddingCardsError{ "pass already set" }));
+          gameUserItr->_user->sendMessageToUser (objectToStringWithObjectName (shared_class::DurakDefendWantsToTakeCardsFromTableDoneAddingCardsError{ "pass already set" }));
         }
     }
 };
 auto const setAssistAnswer = [] (assistPass const &assistPassEv, PassAttackAndAssist &passAttackAndAssist, durak::Game &game, std::vector<GameUser> &_gameUsers, boost::sml::back::process<pauseTimer, sendTimerEv> process_event) {
   if (auto gameUserItr = ranges::find_if (_gameUsers, [accountName = assistPassEv.playerName] (auto const &gameUser) { return gameUser._user->accountName.value () == accountName; }); gameUserItr != _gameUsers.end ())
     {
-      auto &sendingUserMsgQueue = gameUserItr->_user->msgQueue;
       if (not passAttackAndAssist.assist)
         {
           if (game.getRoleForName (assistPassEv.playerName) == durak::PlayerRole::assistAttacker)
@@ -387,17 +386,17 @@ auto const setAssistAnswer = [] (assistPass const &assistPassEv, PassAttackAndAs
               passAttackAndAssist.assist = true;
               process_event (pauseTimer{ { assistPassEv.playerName } });
               process_event (sendTimerEv{});
-              sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAllowedMoves{ {} }));
-              sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendWantsToTakeCardsFromTableDoneAddingCardsSuccess{}));
+              gameUserItr->_user->sendMessageToUser (objectToStringWithObjectName (shared_class::DurakAllowedMoves{ {} }));
+              gameUserItr->_user->sendMessageToUser (objectToStringWithObjectName (shared_class::DurakDefendWantsToTakeCardsFromTableDoneAddingCardsSuccess{}));
             }
           else
             {
-              sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendWantsToTakeCardsFromTableDoneAddingCardsError{ "role is not assist" }));
+              gameUserItr->_user->sendMessageToUser (objectToStringWithObjectName (shared_class::DurakDefendWantsToTakeCardsFromTableDoneAddingCardsError{ "role is not assist" }));
             }
         }
       else
         {
-          sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendWantsToTakeCardsFromTableDoneAddingCardsError{ "pass already set" }));
+          gameUserItr->_user->sendMessageToUser (objectToStringWithObjectName (shared_class::DurakDefendWantsToTakeCardsFromTableDoneAddingCardsError{ "pass already set" }));
         }
     }
 };
@@ -443,8 +442,8 @@ auto const startAskDef = [] (durak::Game &game, std::vector<GameUser> &_gameUser
       process_event (resumeTimer{ { defendingPlayer->id } });
       if (auto gameUserItr = ranges::find_if (_gameUsers, [&defendingPlayer] (auto const &gameUser) { return gameUser._user->accountName.value () == defendingPlayer->id; }); gameUserItr != _gameUsers.end ())
         {
-          gameUserItr->_user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAskDefendWantToTakeCards{}));
-          gameUserItr->_user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAllowedMoves{ { shared_class::Move::AnswerDefendWantsToTakeCardsYes, shared_class::Move::AnswerDefendWantsToTakeCardsNo } }));
+          gameUserItr->_user->sendMessageToUser (objectToStringWithObjectName (shared_class::DurakAskDefendWantToTakeCards{}));
+          gameUserItr->_user->sendMessageToUser (objectToStringWithObjectName (shared_class::DurakAllowedMoves{ { shared_class::Move::AnswerDefendWantsToTakeCardsYes, shared_class::Move::AnswerDefendWantsToTakeCardsNo } }));
         }
       if (auto attackingPlayer = game.getAttackingPlayer ())
         {
@@ -478,8 +477,8 @@ auto const startAskAttackAndAssist = [] (PassAttackAndAssist &passAttackAndAssis
       process_event (resumeTimer{ { attackingPlayer->id } });
       if (auto gameUserItr = ranges::find_if (_gameUsers, [&attackingPlayer] (auto const &gameUser) { return gameUser._user->accountName.value () == attackingPlayer->id; }); gameUserItr != _gameUsers.end ())
         {
-          gameUserItr->_user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendWantsToTakeCardsFromTableDoYouWantToAddCards{}));
-          defendsWantsToTakeCardsSendMovesToAttackOrAssist (game, durak::PlayerRole::attack, gameUserItr->_user->msgQueue);
+          gameUserItr->_user->sendMessageToUser (objectToStringWithObjectName (shared_class::DurakDefendWantsToTakeCardsFromTableDoYouWantToAddCards{}));
+          defendsWantsToTakeCardsSendMovesToAttackOrAssist (game, durak::PlayerRole::attack, gameUserItr->_user);
         }
     }
   else
@@ -491,8 +490,8 @@ auto const startAskAttackAndAssist = [] (PassAttackAndAssist &passAttackAndAssis
       process_event (resumeTimer{ { assistingPlayer->id } });
       if (auto gameUserItr = ranges::find_if (_gameUsers, [&assistingPlayer] (auto const &gameUser) { return gameUser._user->accountName.value () == assistingPlayer->id; }); gameUserItr != _gameUsers.end ())
         {
-          gameUserItr->_user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendWantsToTakeCardsFromTableDoYouWantToAddCards{}));
-          defendsWantsToTakeCardsSendMovesToAttackOrAssist (game, durak::PlayerRole::assistAttacker, gameUserItr->_user->msgQueue);
+          gameUserItr->_user->sendMessageToUser (objectToStringWithObjectName (shared_class::DurakDefendWantsToTakeCardsFromTableDoYouWantToAddCards{}));
+          defendsWantsToTakeCardsSendMovesToAttackOrAssist (game, durak::PlayerRole::assistAttacker, gameUserItr->_user);
         }
     }
   else
@@ -516,7 +515,6 @@ auto const startAskAttackAndAssist = [] (PassAttackAndAssist &passAttackAndAssis
 auto const doPass = [] (std::string const &playerName, PassAttackAndAssist &passAttackAndAssist, durak::Game &game, std::vector<GameUser> &_gameUsers, boost::sml::back::process<pauseTimer, sendTimerEv> process_event) {
   if (auto gameUserItr = ranges::find_if (_gameUsers, [&playerName] (auto const &gameUser) { return gameUser._user->accountName.value () == playerName; }); gameUserItr != _gameUsers.end ())
     {
-      auto &sendingUserMsgQueue = gameUserItr->_user->msgQueue;
       auto playerRole = game.getRoleForName (playerName);
       if (game.getAttackStarted ())
         {
@@ -527,30 +525,30 @@ auto const doPass = [] (std::string const &playerName, PassAttackAndAssist &pass
                   if (playerRole == durak::PlayerRole::attack)
                     {
                       passAttackAndAssist.attack = true;
-                      sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAttackPassSuccess{}));
+                      gameUserItr->_user->sendMessageToUser (objectToStringWithObjectName (shared_class::DurakAttackPassSuccess{}));
                     }
                   else
                     {
                       passAttackAndAssist.assist = true;
-                      sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAssistPassSuccess{}));
+                      gameUserItr->_user->sendMessageToUser (objectToStringWithObjectName (shared_class::DurakAssistPassSuccess{}));
                     }
-                  sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAllowedMoves{}));
+                  gameUserItr->_user->sendMessageToUser (objectToStringWithObjectName (shared_class::DurakAllowedMoves{}));
                   process_event (pauseTimer{ { playerName } });
                   process_event (sendTimerEv{});
                 }
               else
                 {
-                  sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAttackPassError{ "account role is not attack or assist: " + playerName }));
+                  gameUserItr->_user->sendMessageToUser (objectToStringWithObjectName (shared_class::DurakAttackPassError{ "account role is not attack or assist: " + playerName }));
                 }
             }
           else
             {
-              sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAttackPassError{ "there are not beaten cards on the table" }));
+              gameUserItr->_user->sendMessageToUser (objectToStringWithObjectName (shared_class::DurakAttackPassError{ "there are not beaten cards on the table" }));
             }
         }
       else
         {
-          sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAttackPassError{ "can not pass if attack is not started" }));
+          gameUserItr->_user->sendMessageToUser (objectToStringWithObjectName (shared_class::DurakAttackPassError{ "can not pass if attack is not started" }));
         }
     }
 };
@@ -560,7 +558,6 @@ auto const setAssistPass = [] (assistPass const &assistPassEv, PassAttackAndAssi
 auto const handleDefendSuccess = [] (defendAnswerNo const &defendAnswerNoEv, durak::Game &game, std::vector<GameUser> &_gameUsers, GameLobby::LobbyType lobbyType) {
   if (auto gameUserItr = ranges::find_if (_gameUsers, [accountName = defendAnswerNoEv.playerName] (auto const &gameUser) { return gameUser._user->accountName.value () == accountName; }); gameUserItr != _gameUsers.end ())
     {
-      auto &sendingUserMsgQueue = gameUserItr->_user->msgQueue;
       if (game.getRoleForName (defendAnswerNoEv.playerName) == durak::PlayerRole::defend)
         {
           game.nextRound (false);
@@ -570,12 +567,12 @@ auto const handleDefendSuccess = [] (defendAnswerNo const &defendAnswerNoEv, dur
             }
           else
             {
-              sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAskDefendWantToTakeCardsAnswerSuccess{}));
+              gameUserItr->_user->sendMessageToUser (objectToStringWithObjectName (shared_class::DurakAskDefendWantToTakeCardsAnswerSuccess{}));
             }
         }
       else
         {
-          sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAskDefendWantToTakeCardsAnswerError{ "account role is not defend: " + defendAnswerNoEv.playerName }));
+          gameUserItr->_user->sendMessageToUser (objectToStringWithObjectName (shared_class::DurakAskDefendWantToTakeCardsAnswerError{ "account role is not defend: " + defendAnswerNoEv.playerName }));
         }
     }
 };
@@ -583,33 +580,32 @@ auto const handleDefendSuccess = [] (defendAnswerNo const &defendAnswerNoEv, dur
 auto const handleDefendPass = [] (defendPass const &defendPassEv, durak::Game &game, std::vector<GameUser> &_gameUsers, boost::sml::back::process<askAttackAndAssist> process_event) {
   if (auto gameUserItr = ranges::find_if (_gameUsers, [accountName = defendPassEv.playerName] (auto const &gameUser) { return gameUser._user->accountName.value () == accountName; }); gameUserItr != _gameUsers.end ())
     {
-      auto &sendingUserMsgQueue = gameUserItr->_user->msgQueue;
       if (game.getRoleForName (defendPassEv.playerName) == durak::PlayerRole::defend)
         {
           if (game.getAttackStarted ())
             {
-              sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendPassSuccess{}));
-              sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAllowedMoves{ {} }));
+              gameUserItr->_user->sendMessageToUser (objectToStringWithObjectName (shared_class::DurakDefendPassSuccess{}));
+              gameUserItr->_user->sendMessageToUser (objectToStringWithObjectName (shared_class::DurakAllowedMoves{ {} }));
               process_event (askAttackAndAssist{});
             }
           else
             {
-              sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendPassError{ "attack is not started" }));
+              gameUserItr->_user->sendMessageToUser (objectToStringWithObjectName (shared_class::DurakDefendPassError{ "attack is not started" }));
             }
         }
       else
         {
-          sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendPassError{ "account role is not defiend: " + defendPassEv.playerName }));
+          gameUserItr->_user->sendMessageToUser (objectToStringWithObjectName (shared_class::DurakDefendPassError{ "account role is not defiend: " + defendPassEv.playerName }));
         }
     }
 };
 
 auto const resetPassStateMachineData = [] (PassAttackAndAssist &passAttackAndAssist) { passAttackAndAssist = PassAttackAndAssist{}; };
 
-auto const tryToAttackAndInformOtherPlayers = [] (PassAttackAndAssist &passAttackAndAssist, attack const &attackEv, durak::PlayerRole playerRole, durak::Game &game, std::vector<GameUser> &_gameUsers, boost::sml::back::process<resumeTimer, pauseTimer, sendTimerEv> process_event, bool isChill, std::deque<std::string> &sendingUserMsgQueue) {
+auto const tryToAttackAndInformOtherPlayers = [] (PassAttackAndAssist &passAttackAndAssist, attack const &attackEv, durak::PlayerRole playerRole, durak::Game &game, std::vector<GameUser> &_gameUsers, boost::sml::back::process<resumeTimer, pauseTimer, sendTimerEv> process_event, bool isChill, std::shared_ptr<User> user) {
   if (game.playerAssists (playerRole, attackEv.cards))
     {
-      sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAttackSuccess{}));
+      user->sendMessageToUser (objectToStringWithObjectName (shared_class::DurakAttackSuccess{}));
       if (isChill)
         {
           if (auto defendingPlayer = game.getDefendingPlayer ())
@@ -632,12 +628,12 @@ auto const tryToAttackAndInformOtherPlayers = [] (PassAttackAndAssist &passAttac
         {
           sendGameDataToAccountsInGame (game, _gameUsers);
           auto otherPlayerRole = (playerRole == durak::PlayerRole::attack) ? durak::PlayerRole::assistAttacker : durak::PlayerRole::attack;
-          defendsWantsToTakeCardsSendMovesToAttackOrAssist (game, playerRole, sendingUserMsgQueue);
+          defendsWantsToTakeCardsSendMovesToAttackOrAssist (game, playerRole, user);
           if (auto otherPlayer = (otherPlayerRole == durak::PlayerRole::attack) ? game.getAttackingPlayer () : game.getAssistingPlayer ())
             {
               if (auto otherPlayerItr = ranges::find_if (_gameUsers, [otherPlayerName = otherPlayer->id] (auto const &gameUser) { return gameUser._user->accountName.value () == otherPlayerName; }); otherPlayerItr != _gameUsers.end ())
                 {
-                  defendsWantsToTakeCardsSendMovesToAttackOrAssist (game, otherPlayerRole, otherPlayerItr->_user->msgQueue);
+                  defendsWantsToTakeCardsSendMovesToAttackOrAssist (game, otherPlayerRole, otherPlayerItr->_user);
                 }
               process_event (resumeTimer{ { otherPlayer->id } });
               process_event (sendTimerEv{});
@@ -650,7 +646,6 @@ auto const tryToAttackAndInformOtherPlayers = [] (PassAttackAndAssist &passAttac
 auto const doAttack = [] (PassAttackAndAssist &passAttackAndAssist, attack const &attackEv, durak::Game &game, std::vector<GameUser> &_gameUsers, boost::sml::back::process<resumeTimer, pauseTimer, sendTimerEv> process_event, bool isChill) {
   if (auto gameUserItr = ranges::find_if (_gameUsers, [accountName = attackEv.playerName] (auto const &gameUser) { return gameUser._user->accountName.value () == accountName; }); gameUserItr != _gameUsers.end ())
     {
-      auto &sendingUserMsgQueue = gameUserItr->_user->msgQueue;
       auto playerRole = game.getRoleForName (attackEv.playerName);
       if (not game.getAttackStarted () && playerRole == durak::PlayerRole::attack)
         {
@@ -664,7 +659,7 @@ auto const doAttack = [] (PassAttackAndAssist &passAttackAndAssist, attack const
                 {
                   process_event (pauseTimer{ { attackingPlayer->id } });
                 }
-              sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAttackSuccess{}));
+              gameUserItr->_user->sendMessageToUser (objectToStringWithObjectName (shared_class::DurakAttackSuccess{}));
               sendGameDataToAccountsInGame (game, _gameUsers);
               sendAvailableMoves (game, _gameUsers);
               process_event (sendTimerEv{});
@@ -672,12 +667,12 @@ auto const doAttack = [] (PassAttackAndAssist &passAttackAndAssist, attack const
             }
           else
             {
-              sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAttackError{ "not allowed to play cards" }));
+              gameUserItr->_user->sendMessageToUser (objectToStringWithObjectName (shared_class::DurakAttackError{ "not allowed to play cards" }));
             }
         }
       else
         {
-          tryToAttackAndInformOtherPlayers (passAttackAndAssist, attackEv, playerRole, game, _gameUsers, process_event, isChill, sendingUserMsgQueue);
+          tryToAttackAndInformOtherPlayers (passAttackAndAssist, attackEv, playerRole, game, _gameUsers, process_event, isChill, gameUserItr->_user);
         }
     }
 };
@@ -689,13 +684,13 @@ auto const doAttackAskAttackAndAssist = [] (PassAttackAndAssist &passAttackAndAs
 auto const doDefend = [] (defend const &defendEv, durak::Game &game, std::vector<GameUser> &_gameUsers, boost::sml::back::process<resumeTimer, pauseTimer, sendTimerEv> process_event) {
   if (auto gameUserItr = ranges::find_if (_gameUsers, [accountName = defendEv.playerName] (auto const &gameUser) { return gameUser._user->accountName.value () == accountName; }); gameUserItr != _gameUsers.end ())
     {
-      auto &sendingUserMsgQueue = gameUserItr->_user->msgQueue;
+
       auto playerRole = game.getRoleForName (defendEv.playerName);
       if (playerRole == durak::PlayerRole::defend)
         {
           if (game.playerDefends (defendEv.cardToBeat, defendEv.card))
             {
-              sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendSuccess{}));
+              gameUserItr->_user->sendMessageToUser (objectToStringWithObjectName (shared_class::DurakDefendSuccess{}));
               sendGameDataToAccountsInGame (game, _gameUsers);
               sendAvailableMoves (game, _gameUsers);
               if (game.countOfNotBeatenCardsOnTable () == 0)
@@ -714,7 +709,7 @@ auto const doDefend = [] (defend const &defendEv, durak::Game &game, std::vector
             }
           else
             {
-              sendingUserMsgQueue.push_back (objectToStringWithObjectName (shared_class::DurakDefendError{ "Error while defending " + fmt::format ("CardToBeat: {},{} vs. Card: {},{}", defendEv.cardToBeat.value, magic_enum::enum_name (defendEv.cardToBeat.type), defendEv.card.value, magic_enum::enum_name (defendEv.card.type)) }));
+              gameUserItr->_user->sendMessageToUser (objectToStringWithObjectName (shared_class::DurakDefendError{ "Error while defending " + fmt::format ("CardToBeat: {},{} vs. Card: {},{}", defendEv.cardToBeat.value, magic_enum::enum_name (defendEv.cardToBeat.type), defendEv.card.value, magic_enum::enum_name (defendEv.card.type)) }));
             }
         }
     }
@@ -725,7 +720,7 @@ auto const blockOnlyDef = [] (durak::Game &game, std::vector<GameUser> &_gameUse
     {
       if (auto gameUserItr = ranges::find_if (_gameUsers, [&defendingPlayer] (auto const &gameUser) { return gameUser._user->accountName.value () == defendingPlayer->id; }); gameUserItr != _gameUsers.end ())
         {
-          gameUserItr->_user->msgQueue.push_back (objectToStringWithObjectName (shared_class::DurakAllowedMoves{ {} }));
+          gameUserItr->_user->sendMessageToUser (objectToStringWithObjectName (shared_class::DurakAllowedMoves{ {} }));
         }
     }
 };
