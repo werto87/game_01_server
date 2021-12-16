@@ -40,7 +40,7 @@ CXX=Path to clang++
 - Clone the repo 'git clone https://github.com/werto87/game_01_server.git'
 - Change into cloned repo 'cd game_01_server/'
 - Create build folder and change into it 'mkdir build && cd build'
-- Get the dependencies 'conan install .. --profile clang -s build_type=Debug --build missing'
+- Get the dependencies 'conan install .. --build missing'
 - Configure cmake 'cmake ..'
 - Build Modern Durak Server 'cmake --build .'
 ## How to run Modern Durak Server
