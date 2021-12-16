@@ -41,7 +41,7 @@ CXX=Path to clang++
 - Change into cloned repo 'cd game_01_server/'
 - Create build folder and change into it 'mkdir build && cd build'
 - Get the dependencies 'conan install .. --profile clang -s build_type=Debug --build missing'
-- Configure cmake 'cmake  ..
+- Configure cmake 'cmake ..'
 - Build Modern Durak Server 'cmake --build .'
 ## How to run Modern Durak Server
 Run Modern Durak Server on default port which is 55555 './bin/project'  
