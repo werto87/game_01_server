@@ -16,7 +16,7 @@ RUN echo "[settings]\nos=Linux\narch=x86_64\ncompiler=clang\ncompiler.version=12
 RUN conan remote add gitlab https://gitlab.com/api/v4/projects/27217743/packages/conan
 
 # Build the server 
-RUN cd /server && rm -rf build ; mkdir build && cd build && conan install .. --profile clang -s build_type=Release --build missing && cmake  .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=1  -D CMAKE_C_COMPILER=/usr/local/bin/clang -D CMAKE_CXX_COMPILER=/usr/local/bin/clang++ && cmake --build .
+RUN cd /server && rm -rf build ; mkdir build && cd build && conan install .. --profile clang -s build_type=Release --build missing && cmake  .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=1  -D CMAKE_C_COMPILER=/usr/local/bin/clang -D CMAKE_CXX_COMPILER=/usr/local/bin/clang++ -D CMAKE_CXX_FLAGS="-std=c++20 -stdlib=libc++" -D CMAKE_EXE_LINKER_FLAGS="-std=c++20 -stdlib=libc++ -lc++abi" && cmake --build .
 
 FROM busybox:glibc
 
