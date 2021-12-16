@@ -108,12 +108,15 @@ bool
 GameLobby::removeUser (std::shared_ptr<User> const &user)
 {
   _users.erase (std::remove_if (_users.begin (), _users.end (), [accountName = user->accountName.value ()] (auto const &_user) { return accountName == _user->accountName.value (); }), _users.end ());
-  auto usersInGameLobby = shared_class::UsersInGameLobby{};
-  usersInGameLobby.maxUserSize = maxUserCount ();
-  usersInGameLobby.name = name.value ();
-  usersInGameLobby.durakGameOption = gameOption;
-  ranges::transform (accountNames (), ranges::back_inserter (usersInGameLobby.users), [] (auto const &accountName) { return shared_class::UserInGameLobby{ accountName }; });
-  sendToAllAccountsInGameLobby (objectToStringWithObjectName (usersInGameLobby));
+  if (lobbyAdminType == LobbyType::FirstUserInLobbyUsers)
+    {
+      auto usersInGameLobby = shared_class::UsersInGameLobby{};
+      usersInGameLobby.maxUserSize = maxUserCount ();
+      usersInGameLobby.name = name.value ();
+      usersInGameLobby.durakGameOption = gameOption;
+      ranges::transform (accountNames (), ranges::back_inserter (usersInGameLobby.users), [] (auto const &accountName) { return shared_class::UserInGameLobby{ accountName }; });
+      sendToAllAccountsInGameLobby (objectToStringWithObjectName (usersInGameLobby));
+    }
   return _users.empty ();
 }
 
