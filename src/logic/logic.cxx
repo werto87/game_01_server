@@ -758,15 +758,6 @@ leaveGameLobby (std::shared_ptr<User> user, std::list<GameLobby> &gameLobbies)
             {
               gameLobbies.erase (gameLobbyWithAccount);
             }
-          else
-            {
-              auto usersInGameLobby = shared_class::UsersInGameLobby{};
-              usersInGameLobby.maxUserSize = gameLobbyWithAccount->maxUserCount ();
-              usersInGameLobby.name = gameLobbyWithAccount->name.value ();
-              usersInGameLobby.durakGameOption = gameLobbyWithAccount->gameOption;
-              ranges::transform (gameLobbyWithAccount->accountNames (), ranges::back_inserter (usersInGameLobby.users), [] (auto const &accountName) { return shared_class::UserInGameLobby{ accountName }; });
-              gameLobbyWithAccount->sendToAllAccountsInGameLobby (objectToStringWithObjectName (usersInGameLobby));
-            }
           user->sendMessageToUser (objectToStringWithObjectName (shared_class::LeaveGameLobbySuccess{}));
           return;
         }
