@@ -1,36 +1,27 @@
-FROM silkeh/clang:12
+FROM archlinux:base-devel
+
 
 COPY . /server
 
-##INSTALL conan
-RUN apt update
+RUN pacman-key --init
 
-RUN apt-get -y install python3-pip
+RUN pacman -Syu --noconfirm
 
-RUN pip3 install conan
+# use pip here because its recomended way to install conan from the conan team
+RUN pacman -S cmake git python-pip --noconfirm
 
-RUN conan profile new clang
+RUN pip install conan
 
-RUN echo "[settings]\nos=Linux\narch=x86_64\ncompiler=clang\ncompiler.version=12\ncompiler.libcxx=libc++\n[env]\nCC=/usr/local/bin/clang\nCXX=/usr/local/bin/clang++" > /root/.conan/profiles/clang
+RUN conan profile new default --detect
+
+RUN conan profile update settings.compiler.libcxx=libstdc++11 default
 
 RUN conan remote add gitlab https://gitlab.com/api/v4/projects/27217743/packages/conan
 
-# Build the server 
-RUN cd /server && rm -rf build ; mkdir build && cd build && conan install .. --profile clang -s build_type=Release --build missing && cmake  .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=1  -D CMAKE_C_COMPILER=/usr/local/bin/clang -D CMAKE_CXX_COMPILER=/usr/local/bin/clang++ -D CMAKE_CXX_FLAGS="-std=c++20 -stdlib=libc++" -D CMAKE_EXE_LINKER_FLAGS="-std=c++20 -stdlib=libc++ -lc++abi" && cmake --build .
+RUN cd /server && rm -rf build ; mkdir build ; cd build ; conan install .. -s build_type=Release --build missing ; cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=1 ; cmake --build . ; cd ..
 
-FROM busybox:glibc
+FROM archlinux:base
 
-
-COPY --from=0 /usr/local/lib/libc++abi.so.1 /lib
-COPY --from=0 /lib/x86_64-linux-gnu/libpthread.so.0 /lib
-COPY --from=0 /lib/x86_64-linux-gnu/libdl.so.2 /lib
-COPY --from=0 /lib/x86_64-linux-gnu/librt.so.1 /lib
-COPY --from=0 /usr/local/lib/libc++.so.1 /lib
-COPY --from=0 /lib/x86_64-linux-gnu/libm.so.6 /lib
-COPY --from=0 /lib/x86_64-linux-gnu/libgcc_s.so.1 /lib
-COPY --from=0 /lib/x86_64-linux-gnu/libc.so.6 /lib
-COPY --from=0 /lib64/ld-linux-x86-64.so.2 /lib
-COPY --from=0 /usr/lib/x86_64-linux-gnu/libatomic.so.1 /lib
 COPY --from=0 /server/build/bin/project /server/project
 
 CMD [ "/server/project"]
