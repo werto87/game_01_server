@@ -89,7 +89,7 @@ Server::listener ()
 #else
   auto const pathToChainFile = std::string{ "/etc/letsencrypt/live/test-name/fullchain.pem" };
   auto const pathToPrivateFile = std::string{ "/etc/letsencrypt/live/test-name/privkey.pem" };
-  auto const pathToTmpDhFile = std::string{ "/etc/letsencrypt/dhparams" };
+  auto const pathToTmpDhFile = std::string{ "/etc/letsencrypt/dhparams/dhparam.pem" };
   auto const pollingSleepTimer = std::chrono::seconds{ 2 };
 #endif
   for (;;) // try until no exception
