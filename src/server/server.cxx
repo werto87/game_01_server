@@ -73,16 +73,6 @@ Server::removeUser (std::list<std::shared_ptr<User>>::iterator user)
   users.erase (user);
 }
 
-void
-blockUntilSecretsFound (std::filesystem::path const &pathToChainFile, std::filesystem::path const &pathToPrivateFile, std::filesystem::path const &pathToTmpDhFile, std::chrono::seconds const &pollingSleepTimer)
-{
-  while (not(std::filesystem::exists (pathToChainFile) and std::filesystem::exists (pathToPrivateFile) and std::filesystem::exists (pathToTmpDhFile)))
-    {
-      std::cout << "could not find secret sleeping for: " << pollingSleepTimer.count () << std::endl;
-      std::this_thread::sleep_for (pollingSleepTimer);
-    }
-}
-
 awaitable<void>
 Server::listener ()
 {
@@ -100,37 +90,50 @@ Server::listener ()
   auto const pathToChainFile = std::string{ "/etc/letsencrypt/live/test-name/fullchain.pem" };
   auto const pathToPrivateFile = std::string{ "/etc/letsencrypt/live/test-name/privkey.pem" };
   auto const pathToTmpDhFile = std::string{ "/etc/letsencrypt/dhparams" };
-  auto const pollingBreak = std::chrono::seconds{ 2 };
+  auto const pollingSleepTimer = std::chrono::seconds{ 2 };
 #endif
-  blockUntilSecretsFound (pathToChainFile, pathToPrivateFile, pathToTmpDhFile, pollingBreak);
-  try
+  for (;;) // try until no exception
     {
-      ctx.use_certificate_chain_file (pathToChainFile);
+      try
+        {
+          ctx.use_certificate_chain_file (pathToChainFile);
+          break;
+        }
+      catch (std::exception &e)
+        {
+          std::cout << "load fullchain: " << pathToChainFile << " exception : " << e.what () << std::endl;
+          std::cout << "trying again in: " << pollingSleepTimer.count () << " seconds" << std::endl;
+          std::this_thread::sleep_for (pollingSleepTimer);
+        }
     }
-  catch (std::exception &e)
+  for (;;) // try until no exception
     {
-      std::cout << "load fullchain: " << pathToChainFile << " exception : " << e.what () << std::endl;
-      throw;
+      try
+        {
+          ctx.use_private_key_file (pathToPrivateFile, boost::asio::ssl::context::pem);
+          break;
+        }
+      catch (std::exception &e)
+        {
+          std::cout << "load privkey: " << pathToPrivateFile << " exception : " << e.what () << std::endl;
+          std::cout << "trying again in: " << pollingSleepTimer.count () << " seconds" << std::endl;
+          std::this_thread::sleep_for (pollingSleepTimer);
+        }
     }
-  try
+  for (;;) // try until no exception
     {
-      ctx.use_private_key_file (pathToPrivateFile, boost::asio::ssl::context::pem);
+      try
+        {
+          ctx.use_tmp_dh_file (pathToTmpDhFile);
+          break;
+        }
+      catch (std::exception &e)
+        {
+          std::cout << "load dh2048: " << pathToTmpDhFile << " exception : " << e.what () << std::endl;
+          std::cout << "trying again in: " << pollingSleepTimer.count () << " seconds" << std::endl;
+          std::this_thread::sleep_for (pollingSleepTimer);
+        }
     }
-  catch (std::exception &e)
-    {
-      std::cout << "load privkey: " << pathToPrivateFile << " exception : " << e.what () << std::endl;
-      throw;
-    }
-  try
-    {
-      ctx.use_tmp_dh_file (pathToTmpDhFile);
-    }
-  catch (std::exception &e)
-    {
-      std::cout << "load dh2048: " << pathToTmpDhFile << " exception : " << e.what () << std::endl;
-      throw;
-    }
-
   boost::certify::enable_native_https_server_verification (ctx);
   ctx.set_options (SSL_SESS_CACHE_OFF | SSL_OP_NO_TICKET); //  disable ssl cache. It has a bad support in boost asio/beast and I do not know if it helps in performance in our usecase
   for (;;)
