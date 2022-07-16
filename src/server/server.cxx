@@ -1,7 +1,10 @@
 #include "src/server/server.hxx"
 #include "src/logic/logic.hxx"
 #include <boost/certify/https_verification.hpp>
+#include <chrono>
 #include <cstdlib>
+#include <filesystem>
+#include <thread>
 #ifdef BOOST_ASIO_HAS_CLANG_LIBCXX
 #include <experimental/coroutine>
 #endif
@@ -70,6 +73,16 @@ Server::removeUser (std::list<std::shared_ptr<User>>::iterator user)
   users.erase (user);
 }
 
+void
+blockUntilSecretsFound (std::filesystem::path const &pathToChainFile, std::filesystem::path const &pathToPrivateFile, std::filesystem::path const &pathToTmpDhFile, std::chrono::seconds const &pollingSleepTimer)
+{
+  while (not(std::filesystem::exists (pathToChainFile) and std::filesystem::exists (pathToPrivateFile) and std::filesystem::exists (pathToTmpDhFile)))
+    {
+      std::cout << "could not find secret sleeping for: " << pollingSleepTimer.count () << std::endl;
+      std::this_thread::sleep_for (pollingSleepTimer);
+    }
+}
+
 awaitable<void>
 Server::listener ()
 {
@@ -87,7 +100,9 @@ Server::listener ()
   auto const pathToChainFile = std::string{ "/etc/letsencrypt/live/test-name/fullchain.pem" };
   auto const pathToPrivateFile = std::string{ "/etc/letsencrypt/live/test-name/privkey.pem" };
   auto const pathToTmpDhFile = std::string{ "/etc/letsencrypt/dhparams" };
+  auto const pollingBreak = std::chrono::seconds{ 2 };
 #endif
+  blockUntilSecretsFound (pathToChainFile, pathToPrivateFile, pathToTmpDhFile, pollingBreak);
   try
     {
       ctx.use_certificate_chain_file (pathToChainFile);
