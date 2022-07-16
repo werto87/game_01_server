@@ -83,9 +83,9 @@ Server::listener ()
   auto const pathToPrivateFile = std::string{ "/home/walde/certificate/otherTestCert/privkey.pem" };
   auto const pathToTmpDhFile = std::string{ "/home/walde/certificate/otherTestCert/dh2048.pem" };
 #else
-  auto const pathToChainFile = std::string{ "/secrets/fullchain.pem" };
-  auto const pathToPrivateFile = std::string{ "/secrets/privkey.pem" };
-  auto const pathToTmpDhFile = std::string{ "/secrets/dh2048.pem" };
+  auto const pathToChainFile = std::string{ "/etc/letsencrypt/live/test-name/fullchain.pem" };
+  auto const pathToPrivateFile = std::string{ "/etc/letsencrypt/live/test-name/privkey.pem" };
+  auto const pathToTmpDhFile = std::string{ "/etc/letsencrypt/dhparams" };
 #endif
   try
     {
