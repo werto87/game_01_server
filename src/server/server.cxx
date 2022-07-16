@@ -1,6 +1,7 @@
 #include "src/server/server.hxx"
 #include "src/logic/logic.hxx"
 #include <boost/certify/https_verification.hpp>
+#include <cstdlib>
 #ifdef BOOST_ASIO_HAS_CLANG_LIBCXX
 #include <experimental/coroutine>
 #endif
@@ -94,6 +95,7 @@ Server::listener ()
   catch (std::exception &e)
     {
       std::cout << "load fullchain: " << pathToChainFile << " exception : " << e.what () << std::endl;
+      throw;
     }
   try
     {
@@ -102,6 +104,7 @@ Server::listener ()
   catch (std::exception &e)
     {
       std::cout << "load privkey: " << pathToPrivateFile << " exception : " << e.what () << std::endl;
+      throw;
     }
   try
     {
@@ -110,6 +113,7 @@ Server::listener ()
   catch (std::exception &e)
     {
       std::cout << "load dh2048: " << pathToTmpDhFile << " exception : " << e.what () << std::endl;
+      throw;
     }
 
   boost::certify::enable_native_https_server_verification (ctx);
